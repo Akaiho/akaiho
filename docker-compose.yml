@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  akaiho:
+    build: .
+    image: akaiho:latest
+    container_name: akaiho-dev
+    ports:
+      - "5173:5173" 
+    environment:
+      - HOST=0.0.0.0
+    working_dir: /app
+    restart: unless-stopped

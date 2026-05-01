@@ -1,0 +1,7 @@
+{
+  "rewrites": [
+    { "source": "/011eb7cc998b2a96e7be54551a32d895.txt", "destination": "/011eb7cc998b2a96e7be54551a32d895.txt" },
+    { "source": "/.well-known/(.*)", "destination": "/.well-known/$1" },
+    { "source": "/(.*)", "destination": "/" }
+  ]
+}
