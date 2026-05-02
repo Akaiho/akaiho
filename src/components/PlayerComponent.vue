@@ -1108,7 +1108,7 @@ const toggleBlur = () => {
     }
   } else {
     showMessageToast('Доступно только в приложении Akaiho Desktop')
-    window.open('https://t.me/akaiho/126', '_blank')
+    window.open('https://t.me/Akaihoho', '_blank')
   }
 }
 
@@ -1118,7 +1118,7 @@ const toggleCompressor = () => {
     applyCompressorEffect(compressorEnabled.value)
   } else {
     showMessageToast('Доступно только в приложении Akaiho Desktop')
-    window.open('https://t.me/akaiho/126', '_blank')
+    window.open('https://t.me/Akaihoho', '_blank')
   }
 }
 
@@ -1128,7 +1128,7 @@ const toggleMirror = () => {
     applyMirrorEffect(mirrorEnabled.value)
   } else {
     showMessageToast('Доступно только в приложении Akaiho Desktop')
-    window.open('https://t.me/akaiho/126', '_blank')
+    window.open('https://t.me/Akaihoho', '_blank')
   }
 }
 
@@ -1903,7 +1903,7 @@ const openSettings = () => {
 const togglePiP = async () => {
   if (!isElectron.value) {
     showMessageToast('Доступно только в приложении Akaiho Desktop')
-    window.open('https://t.me/akaiho/126', '_blank')
+    window.open('https://t.me/Akaihoho', '_blank')
     return
   }
 

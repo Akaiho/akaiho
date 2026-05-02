@@ -11,10 +11,7 @@
       of content from the site.
     </p>
     <p>
-      <a href="mailto:akaiho@proton.me">akaiho@proton.me</a> |
-      <a href="https://t.me/akaiho_sup" target="_blank" rel="noopener noreferrer"
-        >https://t.me/akaiho_sup</a
-      >
+      <a href="mailto:akaiho@proton.me">akaiho@proton.me</a>
     </p>
   </div>
 </template>

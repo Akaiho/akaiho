@@ -40,17 +40,33 @@
       <ErrorMessage v-if="errorMessage" :message="errorMessage" :code="errorCode" />
 
       <div v-if="errorMessage && clientReady" class="content-card">
-        <component :is="moviePlayerComponent" v-if="clientReady && moviePlayerComponent" :key="kp_id" :kp-id="kp_id"
-          :movie-info="movieInfo" @update:movie-info="fetchMovieInfo" />
+        <component
+          :is="moviePlayerComponent"
+          v-if="clientReady && moviePlayerComponent"
+          :key="kp_id"
+          :kp-id="kp_id"
+          :movie-info="movieInfo"
+          @update:movie-info="fetchMovieInfo"
+        />
       </div>
 
       <div v-if="movieInfo && !infoLoading" class="content-card">
         <div class="content-header">
-          <div v-if="movieInfo.logo_url" class="content-logo" @mousemove="moveTooltip"
-            @mouseleave="titleCopyTooltip = false" @click="copyMovieMeta">
+          <div
+            v-if="movieInfo.logo_url"
+            class="content-logo"
+            @mousemove="moveTooltip"
+            @mouseleave="titleCopyTooltip = false"
+            @click="copyMovieMeta"
+          >
             <img :src="movieInfo.logo_url" alt="Логотип фильма" class="content-logo" />
           </div>
-          <div v-else @mousemove="moveTooltip" @mouseleave="titleCopyTooltip = false" @click="copyMovieMeta">
+          <div
+            v-else
+            @mousemove="moveTooltip"
+            @mouseleave="titleCopyTooltip = false"
+            @click="copyMovieMeta"
+          >
             <h1 class="content-title">
               {{ movieInfo.title }}
             </h1>
@@ -61,110 +77,186 @@
           </div>
         </div>
 
-        <div v-if="
-          movieInfo.kinopoisk_id ||
-          movieInfo.title ||
-          movieInfo.imdb_id ||
-          movieInfo.rating_imdb ||
-          movieInfo.shikimori_id
-        " class="ratings-links">
-          <component :is="movieRatingComponent" v-if="clientReady && movieRatingComponent && movieInfo.kinopoisk_id"
-            :key="movieInfo.kinopoisk_id" :kp-id="movieInfo.kinopoisk_id" :show-dash="true" />
+        <div
+          v-if="
+            movieInfo.kinopoisk_id ||
+            movieInfo.title ||
+            movieInfo.imdb_id ||
+            movieInfo.rating_imdb ||
+            movieInfo.shikimori_id
+          "
+          class="ratings-links"
+        >
+          <component
+            :is="movieRatingComponent"
+            v-if="clientReady && movieRatingComponent && movieInfo.kinopoisk_id"
+            :key="movieInfo.kinopoisk_id"
+            :kp-id="movieInfo.kinopoisk_id"
+            :show-dash="true"
+          />
 
           <!-- Кинопоиск -->
           <div v-if="movieInfo.kinopoisk_id">
-            <a :href="`https://www.kinopoisk.ru/film/${movieInfo.kinopoisk_id}`" target="_blank"
-              rel="noopener noreferrer" class="rating-link" :title="movieInfo.rating_kinopoisk_vote_count
-                ? `Оценок: ${formatRatingNumber(movieInfo.rating_kinopoisk_vote_count)}`
-                : 'Нет данных о количестве голосов'
-                ">
+            <a
+              :href="`https://www.kinopoisk.ru/film/${movieInfo.kinopoisk_id}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="rating-link"
+              :title="
+                movieInfo.rating_kinopoisk_vote_count
+                  ? `Оценок: ${formatRatingNumber(movieInfo.rating_kinopoisk_vote_count)}`
+                  : 'Нет данных о количестве голосов'
+              "
+            >
               <img src="/src/assets/icon-kp-logo.svg" alt="КП" class="rating-logo" />
               <span class="rating-value" :class="getRatingColor(movieInfo.rating_kinopoisk)">
                 {{ movieInfo.rating_kinopoisk ? movieInfo.rating_kinopoisk : '—' }}
               </span>
-              <img src="/src/assets/icon-external-link.png" alt="Внешняя ссылка" class="external-link-icon" />
+              <img
+                src="/src/assets/icon-external-link.png"
+                alt="Внешняя ссылка"
+                class="external-link-icon"
+              />
             </a>
           </div>
 
           <!-- Поиск на Кинопоиске, если нет ID -->
           <div v-if="!movieInfo.kinopoisk_id && movieInfo.title">
-            <a :href="`https://www.kinopoisk.ru/index.php?kp_query=${encodeURIComponent(movieInfo.title + (movieInfo.year ? ' ' + movieInfo.year : ''))}`"
-              target="_blank" rel="noopener noreferrer" class="rating-link" :title="movieInfo.rating_kinopoisk_vote_count
-                ? `Оценок: ${formatRatingNumber(movieInfo.rating_kinopoisk_vote_count)}`
-                : 'Нет данных о количестве голосов'
-                ">
+            <a
+              :href="`https://www.kinopoisk.ru/index.php?kp_query=${encodeURIComponent(movieInfo.title + (movieInfo.year ? ' ' + movieInfo.year : ''))}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="rating-link"
+              :title="
+                movieInfo.rating_kinopoisk_vote_count
+                  ? `Оценок: ${formatRatingNumber(movieInfo.rating_kinopoisk_vote_count)}`
+                  : 'Нет данных о количестве голосов'
+              "
+            >
               <img src="/src/assets/icon-kp-logo.svg" alt="КП" class="rating-logo" />
               <span class="rating-value" :class="getRatingColor(movieInfo.rating_kinopoisk)">
                 {{ movieInfo.rating_kinopoisk ? movieInfo.rating_kinopoisk : '—' }}
               </span>
-              <img src="/src/assets/icon-external-link.png" alt="Внешняя ссылка" class="external-link-icon" />
+              <img
+                src="/src/assets/icon-external-link.png"
+                alt="Внешняя ссылка"
+                class="external-link-icon"
+              />
             </a>
           </div>
 
           <!-- IMDb -->
           <div v-if="movieInfo.imdb_id">
-            <a :href="`https://www.imdb.com/title/${movieInfo.imdb_id}`" target="_blank" rel="noopener noreferrer"
-              class="rating-link" :title="movieInfo.rating_imdb_vote_count
-                ? `Оценок: ${formatRatingNumber(movieInfo.rating_imdb_vote_count)}`
-                : 'Нет данных о количестве голосов'
-                ">
+            <a
+              :href="`https://www.imdb.com/title/${movieInfo.imdb_id}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="rating-link"
+              :title="
+                movieInfo.rating_imdb_vote_count
+                  ? `Оценок: ${formatRatingNumber(movieInfo.rating_imdb_vote_count)}`
+                  : 'Нет данных о количестве голосов'
+              "
+            >
               <img src="/src/assets/icon-imdb-logo.svg" alt="IMDb" class="rating-logo" />
               <span class="rating-value" :class="getRatingColor(movieInfo.rating_imdb)">
                 {{ movieInfo.rating_imdb ? movieInfo.rating_imdb : '—' }}
               </span>
-              <img src="/src/assets/icon-external-link.png" alt="Внешняя ссылка" class="external-link-icon" />
+              <img
+                src="/src/assets/icon-external-link.png"
+                alt="Внешняя ссылка"
+                class="external-link-icon"
+              />
             </a>
           </div>
 
           <!-- Поиск на IMDb, если нет ID -->
           <div v-if="!movieInfo.imdb_id && movieInfo.title">
-            <a :href="`https://www.imdb.com/find/?q=${encodeURIComponent(movieInfo.title + (movieInfo.year ? ' ' + movieInfo.year : ''))}`"
-              target="_blank" rel="noopener noreferrer" class="rating-link" :title="movieInfo.rating_imdb_vote_count
-                ? `Оценок: ${formatRatingNumber(movieInfo.rating_imdb_vote_count)}`
-                : 'Нет данных о количестве голосов'
-                ">
+            <a
+              :href="`https://www.imdb.com/find/?q=${encodeURIComponent(movieInfo.title + (movieInfo.year ? ' ' + movieInfo.year : ''))}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="rating-link"
+              :title="
+                movieInfo.rating_imdb_vote_count
+                  ? `Оценок: ${formatRatingNumber(movieInfo.rating_imdb_vote_count)}`
+                  : 'Нет данных о количестве голосов'
+              "
+            >
               <img src="/src/assets/icon-imdb-logo.svg" alt="IMDb" class="rating-logo" />
               <span class="rating-value" :class="getRatingColor(movieInfo.rating_imdb)">
                 {{ movieInfo.rating_imdb ? movieInfo.rating_imdb : '—' }}
               </span>
-              <img src="/src/assets/icon-external-link.png" alt="Внешняя ссылка" class="external-link-icon" />
+              <img
+                src="/src/assets/icon-external-link.png"
+                alt="Внешняя ссылка"
+                class="external-link-icon"
+              />
             </a>
           </div>
 
           <!-- Shikimori -->
           <div v-if="movieInfo.shikimori_id">
-            <a :href="`https://shikimori.io/animes/${movieInfo.shikimori_id || shiki_id}`" target="_blank"
-              rel="noopener noreferrer" class="rating-link" :title="`Оценок: ${movieInfo.shikimori_votes || 0}`">
+            <a
+              :href="`https://shikimori.io/animes/${movieInfo.shikimori_id || shiki_id}`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="rating-link"
+              :title="`Оценок: ${movieInfo.shikimori_votes || 0}`"
+            >
               <img src="/src/assets/icon-shikimori.svg" alt="Shikimori" class="rating-logo" />
               <span class="rating-value" :class="getRatingColor(movieInfo.rating_shikimori)">
                 {{ Number(movieInfo.rating_shikimori)?.toFixed(1) || 'N/A' }}
               </span>
-              <img src="/src/assets/icon-external-link.png" alt="Внешняя ссылка" class="external-link-icon" />
+              <img
+                src="/src/assets/icon-external-link.png"
+                alt="Внешняя ссылка"
+                class="external-link-icon"
+              />
             </a>
           </div>
 
           <span class="action-buttons-group">
             <template v-if="movieInfo.imdb_id">
-              <button class="nudity-info-btn parents-guide-btn" :title="nudityInfo ? 'Скрыть информацию' : 'Показать Parents Guide и информацию о сценах'
-                " @click="showNudityInfo($event)" @mousedown="handleMiddleClick($event)">
+              <button
+                class="nudity-info-btn parents-guide-btn"
+                :title="
+                  nudityInfo ? 'Скрыть информацию' : 'Показать Parents Guide и информацию о сценах'
+                "
+                @click="showNudityInfo($event)"
+                @mousedown="handleMiddleClick($event)"
+              >
                 <span class="desktop-text">Parents Guide</span>
                 <span class="mobile-text">PG</span>
                 <i v-if="!nudityInfoLoading" class="fa-regular fa-face-grin-wink"></i>
                 <i v-else class="fas fa-spinner fa-spin"></i>
               </button>
             </template>
-            <button class="nudity-info-btn" :title="nudityTimings !== undefined
-              ? 'Скрыть тайминги'
-              : 'Показать тайминги сцен 18+(для твича, мигание отключается в настройках)'
-              " @click="showNudityTimings($event)">
-              <i class="fa-regular fa-clock" :class="{
-                'text-red': shouldShowRedTimings,
-                'text-red-blink': shouldBlinkRedTimings
-              }"></i>
+            <button
+              class="nudity-info-btn"
+              :title="
+                nudityTimings !== undefined
+                  ? 'Скрыть тайминги'
+                  : 'Показать тайминги сцен 18+(для твича, мигание отключается в настройках)'
+              "
+              @click="showNudityTimings($event)"
+            >
+              <i
+                class="fa-regular fa-clock"
+                :class="{
+                  'text-red': shouldShowRedTimings,
+                  'text-red-blink': shouldBlinkRedTimings
+                }"
+              ></i>
               <span class="mobile-text">Тайминги</span>
             </button>
-            <button v-if="authStore.token" class="nudity-info-btn note-btn" :class="{ 'has-note': movieNote }"
-              :title="movieNote ? 'Редактировать заметку' : 'Добавить заметку'" @click="toggleNoteEditor">
+            <button
+              v-if="authStore.token"
+              class="nudity-info-btn note-btn"
+              :class="{ 'has-note': movieNote }"
+              :title="movieNote ? 'Редактировать заметку' : 'Добавить заметку'"
+              @click="toggleNoteEditor"
+            >
               <i class="fa-regular fa-note-sticky"></i>
               <span class="mobile-text">Заметка</span>
             </button>
@@ -172,8 +264,14 @@
         </div>
 
         <!-- Интеграция компонента плеера -->
-        <component :is="moviePlayerComponent" v-if="clientReady && moviePlayerComponent" :key="kp_id" :kp-id="kp_id"
-          :movie-info="movieInfo" @update:movie-info="fetchMovieInfo" />
+        <component
+          :is="moviePlayerComponent"
+          v-if="clientReady && moviePlayerComponent"
+          :key="kp_id"
+          :kp-id="kp_id"
+          :movie-info="movieInfo"
+          @update:movie-info="fetchMovieInfo"
+        />
 
         <div v-if="mainStore.isMobile" class="mobile-list-dropdown">
           <button class="mobile-list-toggle" :class="{}" @click="isListExpanded = !isListExpanded">
@@ -181,38 +279,64 @@
               isInAnyList ? 'bookmark_added' : 'bookmark_border'
             }}</span>
             <span class="button-label">Добавить в список</span>
-            <span class="material-icons dropdown-arrow" :class="{ expanded: isListExpanded }">expand_more</span>
+            <span class="material-icons dropdown-arrow" :class="{ expanded: isListExpanded }"
+              >expand_more</span
+            >
           </button>
 
           <div v-show="isListExpanded" class="mobile-list-content">
-            <button class="mobile-list-btn" :class="{}" @click="toggleList(USER_LIST_TYPES_ENUM.FAVORITE)">
+            <button
+              class="mobile-list-btn"
+              :class="{}"
+              @click="toggleList(USER_LIST_TYPES_ENUM.FAVORITE)"
+            >
               <span class="material-icons" :class="{ active: movieInfo?.lists?.isFavorite }">{{
                 movieInfo?.lists?.isFavorite ? 'favorite' : 'favorite_border'
               }}</span>
               <span class="button-label">В избранное</span>
             </button>
 
-            <button class="mobile-list-btn" :class="{}" @click="toggleList(USER_LIST_TYPES_ENUM.WATCHING)">
+            <button
+              class="mobile-list-btn"
+              :class="{}"
+              @click="toggleList(USER_LIST_TYPES_ENUM.WATCHING)"
+            >
               <span class="material-icons" :class="{ active: movieInfo?.lists?.isWatching }">{{
                 movieInfo?.lists?.isWatching ? 'visibility' : 'visibility_off'
               }}</span>
               <span class="button-label">Смотрю</span>
             </button>
 
-            <button class="mobile-list-btn" :class="{}" @click="toggleList(USER_LIST_TYPES_ENUM.LATER)">
-              <span class="material-icons" :class="{ active: movieInfo?.lists?.isLater }">watch_later</span>
+            <button
+              class="mobile-list-btn"
+              :class="{}"
+              @click="toggleList(USER_LIST_TYPES_ENUM.LATER)"
+            >
+              <span class="material-icons" :class="{ active: movieInfo?.lists?.isLater }"
+                >watch_later</span
+              >
               <span class="button-label">Позже</span>
             </button>
 
-            <button class="mobile-list-btn" :class="{}" @click="toggleList(USER_LIST_TYPES_ENUM.COMPLETED)">
+            <button
+              class="mobile-list-btn"
+              :class="{}"
+              @click="toggleList(USER_LIST_TYPES_ENUM.COMPLETED)"
+            >
               <span class="material-icons" :class="{ active: movieInfo?.lists?.isCompleted }">{{
                 movieInfo?.lists?.isCompleted ? 'check_circle' : 'check_circle_outline'
               }}</span>
               <span class="button-label">Просмотрено</span>
             </button>
 
-            <button class="mobile-list-btn" :class="{}" @click="toggleList(USER_LIST_TYPES_ENUM.ABANDONED)">
-              <span class="material-icons" :class="{ active: movieInfo?.lists?.isAbandoned }">not_interested</span>
+            <button
+              class="mobile-list-btn"
+              :class="{}"
+              @click="toggleList(USER_LIST_TYPES_ENUM.ABANDONED)"
+            >
+              <span class="material-icons" :class="{ active: movieInfo?.lists?.isAbandoned }"
+                >not_interested</span
+              >
               <span class="button-label">Брошено</span>
             </button>
           </div>
@@ -242,16 +366,19 @@
                 </li>
                 <li v-if="movieInfo.countries?.length">
                   <strong>Страна производства:</strong>
-                  {{movieInfo.countries.map((item) => item.country).join(', ')}}
+                  {{ movieInfo.countries.map((item) => item.country).join(', ') }}
                 </li>
                 <li v-if="movieInfo.genres?.length">
                   <strong>Жанры:</strong>
-                  {{movieInfo.genres.map((item) => item.genre).join(', ')}}
+                  {{ movieInfo.genres.map((item) => item.genre).join(', ') }}
                 </li>
                 <li v-if="movieInfo.film_length">
                   <strong>Продолжительность:</strong> {{ formatTime(movieInfo.film_length) }}
                 </li>
-                <li v-if="movieInfo.rating_mpaa || movieInfo.rating_age_limits" class="rating-boxes">
+                <li
+                  v-if="movieInfo.rating_mpaa || movieInfo.rating_age_limits"
+                  class="rating-boxes"
+                >
                   <div v-if="movieInfo.rating_mpaa" class="rating-box mpaa">
                     <strong>MPAA</strong>
                     <span>{{ movieInfo.rating_mpaa.toUpperCase() }}</span>
@@ -311,10 +438,18 @@
             <div v-if="getStaffByProfession('ACTOR').length" class="staff-category">
               <h3 class="additional-info-title">Актёры</h3>
               <div class="staff-list">
-                <div v-for="person in getStaffByProfession('ACTOR').slice(0, 12)" :key="person.staff_id"
-                  class="staff-item">
-                  <a :href="`https://www.kinopoisk.ru/name/${person.staff_id}/`" target="_blank"
-                    rel="noopener noreferrer" class="staff-link" :title="person.description || ''">
+                <div
+                  v-for="person in getStaffByProfession('ACTOR').slice(0, 12)"
+                  :key="person.staff_id"
+                  class="staff-item"
+                >
+                  <a
+                    :href="`https://www.kinopoisk.ru/name/${person.staff_id}/`"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="staff-link"
+                    :title="person.description || ''"
+                  >
                     <img :src="person.poster_url" :alt="person.name_ru" class="staff-photo" />
                     <span class="staff-name">{{ person.name_ru || person.name_en }}</span>
                     <span v-if="person.description" class="staff-role">{{
@@ -322,9 +457,13 @@
                     }}</span>
                   </a>
                 </div>
-                <a class="expand-actors-circle-button" :href="`https://www.kinopoisk.ru/film/${kp_id}/cast/`"
-                  target="_blank" rel="noopener noreferrer"
-                  :title="`Показать всех ${getStaffByProfession('ACTOR').length} актеров`">
+                <a
+                  class="expand-actors-circle-button"
+                  :href="`https://www.kinopoisk.ru/film/${kp_id}/cast/`"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  :title="`Показать всех ${getStaffByProfession('ACTOR').length} актеров`"
+                >
                   +{{ getStaffByProfession('ACTOR').length - 12 }}
                 </a>
               </div>
@@ -334,14 +473,24 @@
               <h3 class="additional-info-title">Режиссёры</h3>
               <div class="staff-names-container">
                 <div class="staff-names-list">
-                  <a v-for="person in getStaffByProfession('DIRECTOR').slice(0, 5)" :key="person.staff_id"
-                    :href="`https://www.kinopoisk.ru/name/${person.staff_id}/`" target="_blank"
-                    rel="noopener noreferrer" class="staff-name-link">
+                  <a
+                    v-for="person in getStaffByProfession('DIRECTOR').slice(0, 5)"
+                    :key="person.staff_id"
+                    :href="`https://www.kinopoisk.ru/name/${person.staff_id}/`"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="staff-name-link"
+                  >
                     {{ person.name_ru || person.name_en }}
                   </a>
-                  <a v-if="getStaffByProfession('DIRECTOR').length > 5" class="expand-actors-circle-button"
-                    :href="`https://www.kinopoisk.ru/film/${kp_id}/cast/`" target="_blank" rel="noopener noreferrer"
-                    :title="`Показать всех ${getStaffByProfession('DIRECTOR').length} режиссёров`">
+                  <a
+                    v-if="getStaffByProfession('DIRECTOR').length > 5"
+                    class="expand-actors-circle-button"
+                    :href="`https://www.kinopoisk.ru/film/${kp_id}/cast/`"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    :title="`Показать всех ${getStaffByProfession('DIRECTOR').length} режиссёров`"
+                  >
                     +{{ getStaffByProfession('DIRECTOR').length - 5 }}
                   </a>
                 </div>
@@ -352,14 +501,24 @@
               <h3 class="additional-info-title">Продюсеры</h3>
               <div class="staff-names-container">
                 <div class="staff-names-list">
-                  <a v-for="person in getStaffByProfession('PRODUCER').slice(0, 5)" :key="person.staff_id"
-                    :href="`https://www.kinopoisk.ru/name/${person.staff_id}/`" target="_blank"
-                    rel="noopener noreferrer" class="staff-name-link">
+                  <a
+                    v-for="person in getStaffByProfession('PRODUCER').slice(0, 5)"
+                    :key="person.staff_id"
+                    :href="`https://www.kinopoisk.ru/name/${person.staff_id}/`"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="staff-name-link"
+                  >
                     {{ person.name_ru || person.name_en }}
                   </a>
-                  <a v-if="getStaffByProfession('PRODUCER').length > 5" class="expand-actors-circle-button"
-                    :href="`https://www.kinopoisk.ru/film/${kp_id}/cast/`" target="_blank" rel="noopener noreferrer"
-                    :title="`Показать всех ${getStaffByProfession('PRODUCER').length} продюсеров`">
+                  <a
+                    v-if="getStaffByProfession('PRODUCER').length > 5"
+                    class="expand-actors-circle-button"
+                    :href="`https://www.kinopoisk.ru/film/${kp_id}/cast/`"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    :title="`Показать всех ${getStaffByProfession('PRODUCER').length} продюсеров`"
+                  >
                     +{{ getStaffByProfession('PRODUCER').length - 5 }}
                   </a>
                 </div>
@@ -373,11 +532,21 @@
           <div class="related-movies-header">
             <h2>Сиквелы и приквелы</h2>
           </div>
-          <MovieList :movies-list="showAllSequels ? sequelsAndPrequels : sequelsAndPrequels.slice(0, itemsPerRow)
-            " :loading="false" :is-history="false" variant="related" class="related-movies-list" />
-          <a v-if="sequelsAndPrequels.length > itemsPerRow" class="expand-circle-button"
+          <MovieList
+            :movies-list="
+              showAllSequels ? sequelsAndPrequels : sequelsAndPrequels.slice(0, itemsPerRow)
+            "
+            :loading="false"
+            :is-history="false"
+            variant="related"
+            class="related-movies-list"
+          />
+          <a
+            v-if="sequelsAndPrequels.length > itemsPerRow"
+            class="expand-circle-button"
             :title="`${showAllSequels ? 'Скрыть' : 'Показать все'} (${sequelsAndPrequels.length})`"
-            @click="showAllSequels = !showAllSequels">
+            @click="showAllSequels = !showAllSequels"
+          >
             {{ showAllSequels ? '−' : `+${sequelsAndPrequels.length - itemsPerRow}` }}
           </a>
         </div>
@@ -387,11 +556,19 @@
           <div class="related-movies-header">
             <h2>Похожие</h2>
           </div>
-          <MovieList :movies-list="showAllSimilars ? similars : similars.slice(0, itemsPerRow)" :loading="false"
-            :is-history="false" variant="related" class="related-movies-list" />
-          <a v-if="similars.length > itemsPerRow" class="expand-circle-button"
+          <MovieList
+            :movies-list="showAllSimilars ? similars : similars.slice(0, itemsPerRow)"
+            :loading="false"
+            :is-history="false"
+            variant="related"
+            class="related-movies-list"
+          />
+          <a
+            v-if="similars.length > itemsPerRow"
+            class="expand-circle-button"
             :title="`${showAllSimilars ? 'Скрыть' : 'Показать все'} (${similars.length})`"
-            @click="showAllSimilars = !showAllSimilars">
+            @click="showAllSimilars = !showAllSimilars"
+          >
             {{ showAllSimilars ? '−' : `+${similars.length - itemsPerRow}` }}
           </a>
         </div>
@@ -410,8 +587,12 @@
       </div>
     </div>
     <div class="nudity-info-actions">
-      <a :href="`https://www.imdb.com/title/${movieInfo.imdb_id}/parentalguide`" target="_blank"
-        rel="noopener noreferrer" class="nudity-info-button">
+      <a
+        :href="`https://www.imdb.com/title/${movieInfo.imdb_id}/parentalguide`"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="nudity-info-button"
+      >
         <i class="fas fa-external-link-alt"></i>
         <span>Parents Guide</span>
       </a>
@@ -434,7 +615,12 @@
         </div>
         <div class="acknowledgment-content">
           <div class="acknowledgment-row">
-            <a href="https://www.twitch.tv/tanyabelkova" target="_blank" rel="noopener noreferrer" class="twitch-link">
+            <a
+              href="https://www.twitch.tv/tanyabelkova"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="twitch-link"
+            >
               <i class="fa-brands fa-twitch"></i>
               <span>TanyaBelkova</span>
             </a>
@@ -456,13 +642,18 @@
         </div>
         <div class="timings-text">
           <div v-if="nudityTimings.length > 0" class="timing-entries">
-            <div v-for="timing in sortedNudityTimings" :key="timing.id" class="timing-entry" :class="{
-              pending: timing.status === 'pending',
-              'clean-text': timing.status === 'clean_text',
-              selected: selectedTimings.has(timing.id),
-              'top-rated': (timing.voteScore || 0) >= 5,
-              'highly-rated': (timing.voteScore || 0) >= 10
-            }">
+            <div
+              v-for="timing in sortedNudityTimings"
+              :key="timing.id"
+              class="timing-entry"
+              :class="{
+                pending: timing.status === 'pending',
+                'clean-text': timing.status === 'clean_text',
+                selected: selectedTimings.has(timing.id),
+                'top-rated': (timing.voteScore || 0) >= 5,
+                'highly-rated': (timing.voteScore || 0) >= 10
+              }"
+            >
               <div class="timing-content">
                 <div class="timing-header-row" style="display: flex; align-items: center; gap: 8px">
                   <div v-if="timing.status === 'pending'" class="pending-badge">На модерации</div>
@@ -476,76 +667,110 @@
                     <i class="fas fa-thumbs-up"></i> Рекомендуется
                   </div>
                 </div>
-                <div class="timing-actions-row" style="display: flex; align-items: center; gap: 8px; margin-top: 8px">
+                <div
+                  class="timing-actions-row"
+                  style="display: flex; align-items: center; gap: 8px; margin-top: 8px"
+                >
                   <button class="nudity-info-button" @click="handleShowParse(timing)">
                     {{ showParseResult[timing.id] ? 'Скрыть парсер' : 'Показать парсер' }}
                   </button>
 
                   <template v-if="overlayTimings.has(timing.id)">
-                    <button class="nudity-info-button overlay-button" :title="'Удалить из оверлея'"
-                      @click="onRemoveFromOverlay(timing.id)">
+                    <button
+                      class="nudity-info-button overlay-button"
+                      :title="'Удалить из оверлея'"
+                      @click="onRemoveFromOverlay(timing.id)"
+                    >
                       <i class="fas fa-eye-slash"></i>
                       <span>Удалить из оверлея</span>
                     </button>
                   </template>
                   <template v-else>
-                    <button class="nudity-info-button overlay-button" :title="'Добавить в оверлей'"
-                      @click="onAddToOverlay(timing.id)">
+                    <button
+                      class="nudity-info-button overlay-button"
+                      :title="'Добавить в оверлей'"
+                      @click="onAddToOverlay(timing.id)"
+                    >
                       <i class="fas fa-eye"></i>
                       <span>Добавить в оверлей</span>
                     </button>
                   </template>
 
                   <template v-if="canEditTiming(timing)">
-                    <button class="nudity-info-button edit-button" :title="'Редактировать тайминг'"
-                      @click="editTiming(timing)">
+                    <button
+                      class="nudity-info-button edit-button"
+                      :title="'Редактировать тайминг'"
+                      @click="editTiming(timing)"
+                    >
                       <i class="fas fa-edit"></i>
                       <span>Редактировать</span>
                     </button>
-                    <button class="nudity-info-button delete-button" :title="'Удалить тайминг'"
-                      @click="deleteTimingHandler(timing.id)">
+                    <button
+                      class="nudity-info-button delete-button"
+                      :title="'Удалить тайминг'"
+                      @click="deleteTimingHandler(timing.id)"
+                    >
                       <i class="fas fa-trash"></i>
                       <span>Удалить</span>
                     </button>
                   </template>
 
-                  <button v-if="!canEditTiming(timing)" class="nudity-info-button report-button"
-                    :title="'Пожаловаться на тайминг'" @click="reportTimingHandler(timing.id)">
+                  <button
+                    v-if="!canEditTiming(timing)"
+                    class="nudity-info-button report-button"
+                    :title="'Пожаловаться на тайминг'"
+                    @click="reportTimingHandler(timing.id)"
+                  >
                     <i class="fas fa-flag"></i>
                     <span>Пожаловаться</span>
                   </button>
                 </div>
-                <div class="timing-hover-container" :class="{ blurred: timing.status === 'pending' }">
+                <div
+                  class="timing-hover-container"
+                  :class="{ blurred: timing.status === 'pending' }"
+                >
                   <span class="timing-text">{{ timing.timing_text }}</span>
                   <br />
                   <span class="timing-author">
                     by {{ timing.username }}
-                    <span v-if="timing.user_id && timing.user_id !== 0 && timing.user_timing_count > 0"
+                    <span
+                      v-if="timing.user_id && timing.user_id !== 0 && timing.user_timing_count > 0"
                       class="timing-count"
-                      :title="`Авторизованный пользователь (${timing.user_timing_count} таймингов)`">
+                      :title="`Авторизованный пользователь (${timing.user_timing_count} таймингов)`"
+                    >
                       ({{ timing.user_timing_count }})
                     </span>
                   </span>
                 </div>
                 <div class="timing-vote-container">
-                  <button class="vote-button upvote-button" :class="{ active: timing.userVote === 'upvote' }"
-                    :disabled="votingTimingId === timing.id" :title="'Этот тайминг полезен и точен'"
-                    @click="handleVote(timing.id, 'upvote')">
+                  <button
+                    class="vote-button upvote-button"
+                    :class="{ active: timing.userVote === 'upvote' }"
+                    :disabled="votingTimingId === timing.id"
+                    :title="'Этот тайминг полезен и точен'"
+                    @click="handleVote(timing.id, 'upvote')"
+                  >
                     <i class="fas fa-arrow-up"></i>
                     <span class="vote-count">{{ timing.upvotes || 0 }}</span>
                   </button>
                   <span class="vote-score" :class="getVoteScoreClass(timing.voteScore || 0)">
                     {{ timing.voteScore || 0 }}
                   </span>
-                  <button class="vote-button downvote-button" :class="{ active: timing.userVote === 'downvote' }"
-                    :disabled="votingTimingId === timing.id" :title="'Этот тайминг неточен или некорректен'"
-                    @click="handleVote(timing.id, 'downvote')">
+                  <button
+                    class="vote-button downvote-button"
+                    :class="{ active: timing.userVote === 'downvote' }"
+                    :disabled="votingTimingId === timing.id"
+                    :title="'Этот тайминг неточен или некорректен'"
+                    @click="handleVote(timing.id, 'downvote')"
+                  >
                     <i class="fas fa-arrow-down"></i>
                     <span class="vote-count">{{ timing.downvotes || 0 }}</span>
                   </button>
                 </div>
-                <div v-if="showParseResult[timing.id] && Array.isArray(showParseResult[timing.id])"
-                  style="color: #fff; font-size: 13px; margin: 4px 0 0 0">
+                <div
+                  v-if="showParseResult[timing.id] && Array.isArray(showParseResult[timing.id])"
+                  style="color: #fff; font-size: 13px; margin: 4px 0 0 0"
+                >
                   <b>Парсер:</b>
                   <span v-if="showParseResult[timing.id].length === 0">Не удалось распарсить</span>
                   <span v-else>
@@ -553,8 +778,10 @@
                       [{{ formatSecondsToTime(range[0]) }}
                       -
                       {{ formatSecondsToTime(range[1]) }}]{{
-                        idx < showParseResult[timing.id].length - 1 ? ', ' : '' }} </span>
+                        idx < showParseResult[timing.id].length - 1 ? ', ' : ''
+                      }}
                     </span>
+                  </span>
                 </div>
               </div>
             </div>
@@ -563,52 +790,80 @@
             {{ 'Записей о таймингах не найдено' }}
           </div>
         </div>
-        <div v-if="showGeneralParserResult && selectedTimings.size > 0" class="general-parser-result" style="
+        <div
+          v-if="showGeneralParserResult && selectedTimings.size > 0"
+          class="general-parser-result"
+          style="
             margin-top: 15px;
             padding: 15px;
             background: rgba(255, 255, 255, 0.05);
             border-radius: 8px;
-          ">
+          "
+        >
           <h4 style="margin: 0 0 10px 0; color: #fff">
             Общий парсер ({{ selectedTimings.size }} таймингов):
           </h4>
           <div style="color: #fff; font-size: 13px">
-            <span v-if="getGeneralParserResult().length === 0">Не удалось распарсить выбранные тайминги</span>
+            <span v-if="getGeneralParserResult().length === 0"
+              >Не удалось распарсить выбранные тайминги</span
+            >
             <span v-else>
               <span v-for="(range, idx) in getGeneralParserResult()" :key="idx">
                 [{{ formatSecondsToTime(range[0]) }} - {{ formatSecondsToTime(range[1]) }}]{{
-                  idx < getGeneralParserResult().length - 1 ? ', ' : '' }} </span>
+                  idx < getGeneralParserResult().length - 1 ? ', ' : ''
+                }}
               </span>
+            </span>
           </div>
         </div>
-        <div v-if="showOverlayParserResult && overlayTimings.size > 0" class="overlay-parser-result" style="
+        <div
+          v-if="showOverlayParserResult && overlayTimings.size > 0"
+          class="overlay-parser-result"
+          style="
             margin-top: 15px;
             padding: 15px;
             background: rgba(255, 255, 255, 0.05);
             border-radius: 8px;
-          ">
+          "
+        >
           <h4 style="margin: 0 0 10px 0; color: #fff">
             Парсер оверлея ({{ overlayTimings.size }} таймингов):
           </h4>
           <div style="color: #fff; font-size: 13px">
-            <span v-if="getOverlayParserResult().length === 0">Не удалось распарсить выбранные тайминги</span>
+            <span v-if="getOverlayParserResult().length === 0"
+              >Не удалось распарсить выбранные тайминги</span
+            >
             <span v-else>
               <span v-for="(range, idx) in getOverlayParserResult()" :key="idx">
                 [{{ formatSecondsToTime(range[0]) }} - {{ formatSecondsToTime(range[1]) }}]{{
-                  idx < getOverlayParserResult().length - 1 ? ', ' : '' }} </span>
+                  idx < getOverlayParserResult().length - 1 ? ', ' : ''
+                }}
               </span>
+            </span>
           </div>
         </div>
         <div class="nudity-info-actions">
-          <button v-if="nudityTimings.length > 0" class="nudity-info-button" @click="copyNudityTimings">
+          <button
+            v-if="nudityTimings.length > 0"
+            class="nudity-info-button"
+            @click="copyNudityTimings"
+          >
             <i class="fas fa-copy"></i>
             <span>Скопировать</span>
           </button>
-          <button v-if="selectedTimings.size > 0" class="nudity-info-button" @click="showGeneralParser">
+          <button
+            v-if="selectedTimings.size > 0"
+            class="nudity-info-button"
+            @click="showGeneralParser"
+          >
             <i class="fas fa-eye"></i>
             <span>Общий парсер ({{ selectedTimings.size }})</span>
           </button>
-          <button v-if="overlayTimings.size > 0" class="nudity-info-button" @click="showOverlayParser">
+          <button
+            v-if="overlayTimings.size > 0"
+            class="nudity-info-button"
+            @click="showOverlayParser"
+          >
             <i class="fas fa-layer-group"></i>
             <span>Парсер оверлея ({{ overlayTimings.size }})</span>
           </button>
@@ -638,10 +893,14 @@
         </button>
       </div>
       <div class="timing-submission-form">
-        <textarea v-model="newTimingText" placeholder="Пожалуйста, указывайте длительность фильма(в [] скобках, например [01:36] или [01:36:55]), к которому вы прилагаете тайминг
+        <textarea
+          v-model="newTimingText"
+          placeholder="Пожалуйста, указывайте длительность фильма(в [] скобках, например [01:36] или [01:36:55]), к которому вы прилагаете тайминг
 Тк же для автоблюра прошу все тайминги указывать как диапозон, а не конкретное время, например 00:12:31-00:13:04 - текст, а не 00:12:31
 Для сериалов указывайте сезон и номер эпизода
-" class="timing-textarea"></textarea>
+"
+          class="timing-textarea"
+        ></textarea>
 
         <div v-if="parsedTimingPreview && parsedTimingPreview.length > 0" class="timing-preview">
           <div class="timing-preview-header">
@@ -649,7 +908,11 @@
             <span>Предпросмотр парсера</span>
           </div>
           <div class="timing-preview-content">
-            <div v-for="(range, index) in parsedTimingPreview" :key="index" class="timing-preview-item">
+            <div
+              v-for="(range, index) in parsedTimingPreview"
+              :key="index"
+              class="timing-preview-item"
+            >
               <span class="timing-preview-range">
                 {{ formatSecondsToTime(range[0]) }} - {{ formatSecondsToTime(range[1]) }}
               </span>
@@ -661,8 +924,11 @@
         </div>
 
         <div class="timing-form-actions">
-          <button class="submit-timing-btn" :disabled="!canSubmitTiming || isSubmittingTiming"
-            @click="editingTiming ? updateExistingTiming() : submitNewTiming()">
+          <button
+            class="submit-timing-btn"
+            :disabled="!canSubmitTiming || isSubmittingTiming"
+            @click="editingTiming ? updateExistingTiming() : submitNewTiming()"
+          >
             <i v-if="isSubmittingTiming" class="fas fa-spinner fa-spin"></i>
             <span v-else>{{ editingTiming ? 'Обновить тайминг' : 'Добавить тайминг' }}</span>
           </button>
@@ -680,11 +946,19 @@
         </button>
       </div>
       <div class="timing-submission-form">
-        <textarea v-model="reportText" placeholder="Опишите причину жалобы..." class="timing-textarea"
-          rows="4"></textarea>
+        <textarea
+          v-model="reportText"
+          placeholder="Опишите причину жалобы..."
+          class="timing-textarea"
+          rows="4"
+        ></textarea>
 
         <div class="timing-form-actions">
-          <button class="submit-timing-btn" :disabled="!reportText.trim() || isSubmittingReport" @click="submitReport">
+          <button
+            class="submit-timing-btn"
+            :disabled="!reportText.trim() || isSubmittingReport"
+            @click="submitReport"
+          >
             <i v-if="isSubmittingReport" class="fas fa-spinner fa-spin"></i>
             <span v-else>Отправить жалобу</span>
           </button>
@@ -709,17 +983,31 @@
           <i class="fas fa-info-circle"></i>
           <span>Личная заметка о фильме, видна только вам</span>
         </div>
-        <textarea v-model="noteText" placeholder="Напишите свою заметку о фильме..."
-          class="timing-textarea note-textarea" rows="10" maxlength="10000"></textarea>
+        <textarea
+          v-model="noteText"
+          placeholder="Напишите свою заметку о фильме..."
+          class="timing-textarea note-textarea"
+          rows="10"
+          maxlength="10000"
+        ></textarea>
         <div class="char-counter">{{ noteText.length }} / 10000 символов</div>
 
         <div class="timing-form-actions note-form-actions">
-          <button class="submit-timing-btn" :disabled="!noteText.trim() || isSavingNote" @click="handleSaveNote">
+          <button
+            class="submit-timing-btn"
+            :disabled="!noteText.trim() || isSavingNote"
+            @click="handleSaveNote"
+          >
             <i v-if="isSavingNote" class="fas fa-spinner fa-spin"></i>
             <i v-else class="fas fa-save"></i>
             <span>{{ movieNote ? 'Обновить' : 'Сохранить' }}</span>
           </button>
-          <button v-if="movieNote" class="delete-note-btn" :disabled="isDeletingNote" @click="handleDeleteNote">
+          <button
+            v-if="movieNote"
+            class="delete-note-btn"
+            :disabled="isDeletingNote"
+            @click="handleDeleteNote"
+          >
             <i v-if="isDeletingNote" class="fas fa-spinner fa-spin"></i>
             <i v-else class="fas fa-trash"></i>
             <span>Удалить</span>
@@ -738,8 +1026,11 @@
       <div class="modal-header">
         <h3>
           Топ авторов таймингов
-          <span class="hint-text">(Хотите добавить ссылку на свой стрим/соцсети? Напишите нам в
-            <a href="https://t.me/akaiho_sup" target="_blank" rel="noopener noreferrer">телеграм</a>)</span>
+          <span class="hint-text"
+            >(Хотите добавить ссылку на свой стрим/соцсети? Напишите нам в
+            <a href="https://t.me/Akaihoho" target="_blank" rel="noopener noreferrer">телеграм</a
+            >)</span
+          >
         </h3>
         <div class="modal-header-controls">
           <button class="close-modal-btn" @click="showTopSubmittersModal = false">
@@ -748,18 +1039,29 @@
         </div>
       </div>
       <div class="modal-body">
-        <button class="show-all-timings-btn" :disabled="isLoadingAllTimings" @click="showAllTimingsModal">
+        <button
+          class="show-all-timings-btn"
+          :disabled="isLoadingAllTimings"
+          @click="showAllTimingsModal"
+        >
           <i v-if="isLoadingAllTimings" class="fas fa-spinner fa-spin"></i>
           <i v-else class="fas fa-list"></i>
           <span>Все тайминги</span>
         </button>
         <div class="top-submitters-list">
-          <div v-for="(submitter, index) in topSubmitters" :key="submitter.username" class="top-submitter-item">
-            <div class="submitter-rank" :class="{
-              gold: index === 0,
-              silver: index === 1,
-              bronze: index === 2
-            }">
+          <div
+            v-for="(submitter, index) in topSubmitters"
+            :key="submitter.username"
+            class="top-submitter-item"
+          >
+            <div
+              class="submitter-rank"
+              :class="{
+                gold: index === 0,
+                silver: index === 1,
+                bronze: index === 2
+              }"
+            >
               {{ index + 1 }}
             </div>
             <div class="submitter-info">
@@ -782,8 +1084,10 @@
               </div>
             </div>
             <div class="submitter-contribution">
-              <div class="contribution-bar"
-                :style="{ width: getContributionWidth(submitter.approved_submissions_count) + '%' }"></div>
+              <div
+                class="contribution-bar"
+                :style="{ width: getContributionWidth(submitter.approved_submissions_count) + '%' }"
+              ></div>
             </div>
           </div>
         </div>
@@ -791,7 +1095,11 @@
     </div>
   </div>
 
-  <div v-if="showAllTimingsModalVisible" class="modal-overlay" @click="showAllTimingsModalVisible = false">
+  <div
+    v-if="showAllTimingsModalVisible"
+    class="modal-overlay"
+    @click="showAllTimingsModalVisible = false"
+  >
     <div class="modal-content all-timings-modal" @click.stop>
       <div class="modal-header">
         <h3>Все тайминги</h3>
@@ -818,25 +1126,54 @@
                 <span class="timing-date">{{ formatDate(timing.submitted_at) }}</span>
               </div>
               <div class="timing-movie-info">
-                <router-link :to="getMovieSeoPath({ kp_id: timing.kp_id })" class="timing-kp-id clickable"
-                  :title="`Перейти к фильму ${timing.kp_id}`">
+                <router-link
+                  :to="getMovieSeoPath({ kp_id: timing.kp_id })"
+                  class="timing-kp-id clickable"
+                  :title="`Перейти к фильму ${timing.kp_id}`"
+                >
                   KP: {{ timing.kp_id }}
                 </router-link>
-                <div v-if="authStore.user?.is_admin && timing.status === 'pending'" class="admin-controls">
-                  <button v-if="timing.status === 'pending'" class="approve-btn" :disabled="isProcessingTiming"
-                    :title="'Одобрить тайминг'" @click="handleApproveTiming(timing.id)">
-                    <i v-if="processingTimingId === timing.id && isApproving" class="fas fa-spinner fa-spin"></i>
+                <div
+                  v-if="authStore.user?.is_admin && timing.status === 'pending'"
+                  class="admin-controls"
+                >
+                  <button
+                    v-if="timing.status === 'pending'"
+                    class="approve-btn"
+                    :disabled="isProcessingTiming"
+                    :title="'Одобрить тайминг'"
+                    @click="handleApproveTiming(timing.id)"
+                  >
+                    <i
+                      v-if="processingTimingId === timing.id && isApproving"
+                      class="fas fa-spinner fa-spin"
+                    ></i>
                     <i v-else class="fas fa-check"></i>
                   </button>
-                  <button v-if="timing.status === 'pending'" class="reject-btn" :disabled="isProcessingTiming"
-                    :title="'Отклонить тайминг'" @click="handleRejectTiming(timing.id)">
-                    <i v-if="processingTimingId === timing.id && !isApproving && !isMarkingCleanText"
-                      class="fas fa-spinner fa-spin"></i>
+                  <button
+                    v-if="timing.status === 'pending'"
+                    class="reject-btn"
+                    :disabled="isProcessingTiming"
+                    :title="'Отклонить тайминг'"
+                    @click="handleRejectTiming(timing.id)"
+                  >
+                    <i
+                      v-if="processingTimingId === timing.id && !isApproving && !isMarkingCleanText"
+                      class="fas fa-spinner fa-spin"
+                    ></i>
                     <i v-else class="fas fa-times"></i>
                   </button>
-                  <button v-if="timing.status === 'pending'" class="clean-text-btn" :disabled="isProcessingTiming"
-                    :title="'Отметить как clean_text'" @click="handleMarkAsCleanText(timing.id)">
-                    <i v-if="processingTimingId === timing.id && isMarkingCleanText" class="fas fa-spinner fa-spin"></i>
+                  <button
+                    v-if="timing.status === 'pending'"
+                    class="clean-text-btn"
+                    :disabled="isProcessingTiming"
+                    :title="'Отметить как clean_text'"
+                    @click="handleMarkAsCleanText(timing.id)"
+                  >
+                    <i
+                      v-if="processingTimingId === timing.id && isMarkingCleanText"
+                      class="fas fa-spinner fa-spin"
+                    ></i>
                     <i v-else class="fas fa-eye-slash"></i>
                   </button>
                 </div>
@@ -883,8 +1220,12 @@
 
           <div class="obs-setting-group">
             <label>Пароль (если установлен):</label>
-            <input v-model="obsPassword" type="password" placeholder="Оставьте пустым если пароль не установлен"
-              class="obs-input" />
+            <input
+              v-model="obsPassword"
+              type="password"
+              placeholder="Оставьте пустым если пароль не установлен"
+              class="obs-input"
+            />
           </div>
 
           <div v-if="obsConnected" class="obs-setting-group">
@@ -893,7 +1234,11 @@
               ⚠️ Фильтры не найдены в OBS. Убедитесь, что в источниках есть фильтры.
             </div>
             <div v-else class="obs-filter-selection">
-              <select v-model="selectedFilterId" class="obs-filter-select" @change="handleFilterSelect">
+              <select
+                v-model="selectedFilterId"
+                class="obs-filter-select"
+                @change="handleFilterSelect"
+              >
                 <option value="">Выберите фильтр</option>
                 <option v-for="filter in obsFiltersFound" :key="filter.id" :value="filter.id">
                   {{ filter.sourceName }} - {{ filter.filterName }} ({{ filter.sceneName }})
@@ -926,19 +1271,30 @@
           </div>
 
           <div class="obs-actions">
-            <button class="obs-action-btn connect-btn" :disabled="obsConnecting" @click="handleObsConnect">
+            <button
+              class="obs-action-btn connect-btn"
+              :disabled="obsConnecting"
+              @click="handleObsConnect"
+            >
               <i v-if="obsConnecting" class="fas fa-spinner fa-spin"></i>
               <i v-else class="fas fa-plug"></i>
               {{ obsConnected ? 'Переподключиться' : 'Подключиться' }}
             </button>
 
-            <button class="obs-action-btn test-btn" :disabled="!obsConnected || obsFiltersFound.length === 0"
-              @click="handleObsTestBlur">
+            <button
+              class="obs-action-btn test-btn"
+              :disabled="!obsConnected || obsFiltersFound.length === 0"
+              @click="handleObsTestBlur"
+            >
               <i class="fas fa-eye"></i>
               Тестировать блюр
             </button>
 
-            <button class="obs-action-btn refresh-btn" :disabled="!obsConnected" @click="handleObsRefreshFilters">
+            <button
+              class="obs-action-btn refresh-btn"
+              :disabled="!obsConnected"
+              @click="handleObsRefreshFilters"
+            >
               <i class="fas fa-sync"></i>
               Обновить фильтры
             </button>
@@ -1006,14 +1362,14 @@ const infoLoading = ref(!initialSeoEntry)
 const movieInfo = ref(
   initialSeoEntry
     ? {
-      kp_id: initialSeoEntry.kp_id,
-      kinopoisk_id: initialSeoEntry.kp_id,
-      title: initialSeoEntry.title,
-      name_ru: initialSeoEntry.title,
-      year: initialSeoEntry.year,
-      description: initialSeoEntry.description,
-      poster_url: initialSeoEntry.poster
-    }
+        kp_id: initialSeoEntry.kp_id,
+        kinopoisk_id: initialSeoEntry.kp_id,
+        title: initialSeoEntry.title,
+        name_ru: initialSeoEntry.title,
+        year: initialSeoEntry.year,
+        description: initialSeoEntry.description,
+        poster_url: initialSeoEntry.poster
+      }
     : null
 )
 const navbarStore = useNavbarStore()
@@ -1177,19 +1533,19 @@ useHead(() => {
     ].filter((entry) => entry.content),
     script: titleBase
       ? [
-        {
-          type: 'application/ld+json',
-          textContent: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'Movie',
-            name: titleBase,
-            description: seo.description,
-            image: seo.poster || undefined,
-            datePublished: movieInfo.value?.year || undefined,
-            url: seo.canonicalUrl
-          })
-        }
-      ]
+          {
+            type: 'application/ld+json',
+            textContent: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'Movie',
+              name: titleBase,
+              description: seo.description,
+              image: seo.poster || undefined,
+              datePublished: movieInfo.value?.year || undefined,
+              url: seo.canonicalUrl
+            })
+          }
+        ]
       : []
   }
 })
@@ -1260,20 +1616,20 @@ const fetchShikiRating = async (title, year, kind = 'tv') => {
 
     // 1. Exact year + kind match
     if (year) {
-      bestCandidate = searchRes.data.find(anime => getYear(anime) === year && anime.kind === kind)
+      bestCandidate = searchRes.data.find((anime) => getYear(anime) === year && anime.kind === kind)
     }
 
     // 2. Exact year match (any kind)
     if (!bestCandidate && year) {
-      bestCandidate = searchRes.data.find(anime => getYear(anime) === year)
+      bestCandidate = searchRes.data.find((anime) => getYear(anime) === year)
     }
 
     // 3. Kind match (prefer tv, fallback to movie)
     if (!bestCandidate) {
-      bestCandidate = searchRes.data.find(anime => anime.kind === kind)
+      bestCandidate = searchRes.data.find((anime) => anime.kind === kind)
     }
     if (!bestCandidate) {
-      bestCandidate = searchRes.data.find(anime => anime.kind === 'movie')
+      bestCandidate = searchRes.data.find((anime) => anime.kind === 'movie')
     }
 
     // 4. First result
@@ -1285,7 +1641,8 @@ const fetchShikiRating = async (title, year, kind = 'tv') => {
 
     const fullRes = await axios.get(`https://shikimori.io/api/animes/${bestCandidate.id}`)
     const fullData = fullRes.data
-    const totalVotes = fullData.rates_scores_stats?.reduce((sum, stat) => sum + (stat.value || 0), 0) || 0
+    const totalVotes =
+      fullData.rates_scores_stats?.reduce((sum, stat) => sum + (stat.value || 0), 0) || 0
 
     return {
       shikimori_id: fullData.id,
@@ -1297,9 +1654,6 @@ const fetchShikiRating = async (title, year, kind = 'tv') => {
     return null
   }
 }
-
-
-
 
 const fetchMovieInfo = async (updateHistory = true) => {
   try {
@@ -1374,8 +1728,8 @@ const fetchMovieInfo = async (updateHistory = true) => {
     }
 
     // Load Shikimori rating for KP movies (direct API) - only for anime
-    const isAnime = movieInfo.value.genres?.some(g =>
-      g.genre?.toLowerCase() === 'аниме' || g.genre?.toLowerCase() === 'animation'
+    const isAnime = movieInfo.value.genres?.some(
+      (g) => g.genre?.toLowerCase() === 'аниме' || g.genre?.toLowerCase() === 'animation'
     )
     if (!kp_id.value.startsWith('shiki') && isAnime) {
       const shikiKind = movieInfo.value.film_length ? 'movie' : 'tv'
@@ -2869,10 +3223,12 @@ const handleFilterSelect = () => {
 .movie-skeleton__logo {
   width: 200px;
   height: 80px;
-  background: linear-gradient(90deg,
-      rgba(30, 30, 30, 0.9) 0%,
-      rgba(50, 50, 50, 0.9) 50%,
-      rgba(30, 30, 30, 0.9) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(30, 30, 30, 0.9) 0%,
+    rgba(50, 50, 50, 0.9) 50%,
+    rgba(30, 30, 30, 0.9) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 2s infinite linear;
   border-radius: 8px;
@@ -2881,10 +3237,12 @@ const handleFilterSelect = () => {
 .movie-skeleton__title {
   width: 30%;
   height: 40px;
-  background: linear-gradient(90deg,
-      rgba(40, 40, 40, 0.8) 0%,
-      rgba(60, 60, 60, 0.8) 50%,
-      rgba(40, 40, 40, 0.8) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(40, 40, 40, 0.8) 0%,
+    rgba(60, 60, 60, 0.8) 50%,
+    rgba(40, 40, 40, 0.8) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 2s infinite linear;
   border-radius: 12px;
@@ -2901,10 +3259,12 @@ const handleFilterSelect = () => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg,
-      transparent 0%,
-      rgba(255, 255, 255, 0.05) 50%,
-      transparent 100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    transparent 100%
+  );
   animation: shine 1.5s infinite;
 }
 
@@ -2929,10 +3289,12 @@ const handleFilterSelect = () => {
 .movie-skeleton__rating-item {
   width: 120px;
   height: 30px;
-  background: linear-gradient(90deg,
-      rgba(30, 30, 30, 0.9) 0%,
-      rgba(50, 50, 50, 0.9) 50%,
-      rgba(30, 30, 30, 0.9) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(30, 30, 30, 0.9) 0%,
+    rgba(50, 50, 50, 0.9) 50%,
+    rgba(30, 30, 30, 0.9) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 2s infinite linear;
   border-radius: 8px;
@@ -2984,10 +3346,12 @@ const handleFilterSelect = () => {
 .movie-skeleton__section-title {
   width: 150px;
   height: 24px;
-  background: linear-gradient(90deg,
-      rgba(30, 30, 30, 0.9) 0%,
-      rgba(50, 50, 50, 0.9) 50%,
-      rgba(30, 30, 30, 0.9) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(30, 30, 30, 0.9) 0%,
+    rgba(50, 50, 50, 0.9) 50%,
+    rgba(30, 30, 30, 0.9) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 2s infinite linear;
   border-radius: 8px;
@@ -3003,10 +3367,12 @@ const handleFilterSelect = () => {
 .movie-skeleton__info-item {
   width: 100%;
   height: 20px;
-  background: linear-gradient(90deg,
-      rgba(30, 30, 30, 0.9) 0%,
-      rgba(50, 50, 50, 0.9) 50%,
-      rgba(30, 30, 30, 0.9) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(30, 30, 30, 0.9) 0%,
+    rgba(50, 50, 50, 0.9) 50%,
+    rgba(30, 30, 30, 0.9) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 2s infinite linear;
   border-radius: 8px;
@@ -3019,10 +3385,12 @@ const handleFilterSelect = () => {
 .movie-skeleton__description-line {
   width: 100%;
   height: 16px;
-  background: linear-gradient(90deg,
-      rgba(30, 30, 30, 0.9) 0%,
-      rgba(50, 50, 50, 0.9) 50%,
-      rgba(30, 30, 30, 0.9) 100%);
+  background: linear-gradient(
+    90deg,
+    rgba(30, 30, 30, 0.9) 0%,
+    rgba(50, 50, 50, 0.9) 50%,
+    rgba(30, 30, 30, 0.9) 100%
+  );
   background-size: 200% 100%;
   animation: shimmer 2s infinite linear;
   border-radius: 8px;
@@ -3780,7 +4148,6 @@ const handleFilterSelect = () => {
 }
 
 @keyframes blink-red-streamer {
-
   0%,
   100% {
     color: #ff4444;
@@ -5319,7 +5686,6 @@ const handleFilterSelect = () => {
 }
 
 @keyframes pulse-note {
-
   0%,
   100% {
     transform: scale(1);
