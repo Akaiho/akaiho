@@ -95,16 +95,36 @@ const getShikiRating = async (kpId) => {
     return {}
   }
 }
-const getKpInfo = async (...args) => callWithProvider('getKpInfo', ...args)
+const getKpInfo = async (...args) => {
+  try {
+    return await kinobd.getKpInfo(...args)
+  } catch (error) {
+    console.warn('[movies] getKpInfo failed on KinoBD, fallback to RHServ', error)
+    return await rhserv.getKpInfo(...args)
+  }
+}
 const getPlayers = async (...args) => callWithProvider('getPlayers', ...args)
 const getShikiPlayers = async (...args) => callWithProvider('getShikiPlayers', ...args)
-// Top lists must always come from original RHServ API.
-const getMovies = async (...args) =>
-  await normalizeMovieListResponse(await rhserv.getMovies(...args), { enrichMissingSeo: true })
-const getDiscussedMovies = async (...args) =>
-  await normalizeMovieListResponse(await rhserv.getDiscussedMovies(...args), {
-    enrichMissingSeo: true
-  })
+const getMovies = async (...args) => {
+  try {
+    return await normalizeMovieListResponse(await kinobd.getMovies(...args), { enrichMissingSeo: true })
+  } catch (error) {
+    console.warn('[movies] getMovies failed on KinoBD, fallback to RHServ', error)
+    return await normalizeMovieListResponse(await rhserv.getMovies(...args), { enrichMissingSeo: true })
+  }
+}
+const getDiscussedMovies = async (...args) => {
+  try {
+    return await normalizeMovieListResponse(await kinobd.getDiscussedMovies(...args), {
+      enrichMissingSeo: true
+    })
+  } catch (error) {
+    console.warn('[movies] getDiscussedMovies failed on KinoBD, fallback to RHServ', error)
+    return await normalizeMovieListResponse(await rhserv.getDiscussedMovies(...args), {
+      enrichMissingSeo: true
+    })
+  }
+}
 const getDons = async (...args) => callWithProvider('getDons', ...args)
 const getKpIDfromIMDB = async (...args) => callWithProvider('getKpIDfromIMDB', ...args)
 const getNudityInfoFromIMDB = async (...args) => callWithProvider('getNudityInfoFromIMDB', ...args)

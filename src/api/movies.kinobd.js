@@ -169,6 +169,19 @@ const extractKinopoiskRating = (film) => {
   return { rating, voteCount }
 }
 
+const extractImdbRating = (film) => {
+  const rating = film?.rating_imdb ?? film?.ratings?.imdb ?? null
+  const voteCount =
+    film?.rating_imdb_count ??
+    film?.rating_imdb_vote_count ??
+    film?.ratings_count_imdb ??
+    film?.ratings?.imdb_count ??
+    film?.ratings?.imdb_vote_count ??
+    0
+
+  return { rating, voteCount }
+}
+
 const buildLegacyMovie = (film) => {
   const kpId = film?.kinopoisk_id || film?.kp_id || film?.id || null
   const year = film?.year || film?.year_start || ''
@@ -177,8 +190,20 @@ const buildLegacyMovie = (film) => {
   const titleBase = nameRu || nameEn || 'Без названия'
   const title = year ? `${titleBase} (${year})` : titleBase
   const { rating: ratingKp, voteCount: ratingKpCount } = extractKinopoiskRating(film)
+  const { rating: ratingImdb } = extractImdbRating(film)
   const normalizedRating =
     ratingKp === null || ratingKp === undefined || ratingKp === '' ? 'null' : String(ratingKp)
+  const normalizedKpRating =
+    ratingKp === null || ratingKp === undefined || ratingKp === '' || Number.isNaN(Number(ratingKp))
+      ? null
+      : Number(ratingKp)
+  const normalizedImdbRating =
+    ratingImdb === null ||
+    ratingImdb === undefined ||
+    ratingImdb === '' ||
+    Number.isNaN(Number(ratingImdb))
+      ? null
+      : Number(ratingImdb)
   const posters = resolvePosterSetByMovie({
     ...film,
     kp_id: kpId
@@ -190,10 +215,9 @@ const buildLegacyMovie = (film) => {
     title,
     year: year ? String(year) : '',
     poster: posters.preview,
-    average_rating:
-      ratingKp === null || ratingKp === undefined || Number.isNaN(Number(ratingKp))
-        ? null
-        : Number(ratingKp),
+    average_rating: normalizedKpRating,
+    rating_kp: normalizedKpRating,
+    rating_imdb: normalizedImdbRating,
     raw_data: {
       film_id: kpId,
       name_ru: nameRu,
@@ -218,6 +242,7 @@ const mapKpInfo = (film) => {
   const countries = parseCountries(film)
   const genres = parseGenres(film)
   const { rating: ratingKp, voteCount: ratingKpCount } = extractKinopoiskRating(film)
+  const { rating: ratingImdb, voteCount: ratingImdbCount } = extractImdbRating(film)
 
   return {
     ...film,
@@ -246,7 +271,12 @@ const mapKpInfo = (film) => {
     rating_vote_count: legacy.raw_data.rating_vote_count,
     rating_kinopoisk:
       ratingKp === null || ratingKp === undefined || ratingKp === '' ? null : Number(ratingKp),
-    rating_kinopoisk_vote_count: Number(ratingKpCount) || 0
+    rating_kinopoisk_vote_count: Number(ratingKpCount) || 0,
+    rating_imdb:
+      ratingImdb === null || ratingImdb === undefined || ratingImdb === ''
+        ? null
+        : Number(ratingImdb),
+    rating_imdb_vote_count: Number(ratingImdbCount) || 0
   }
 }
 
