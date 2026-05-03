@@ -7,12 +7,35 @@ import { installRouterGuards } from './router'
 import { buildMoviePath, getPrerenderMovieSeoEntries } from './utils/movieSeo'
 import App from './App.vue'
 
+const patchLegacyNextGuards = (router) => {
+  const originalBeforeEach = router.beforeEach.bind(router)
+
+  router.beforeEach = (guard) => {
+    if (typeof guard === 'function' && guard.length >= 3) {
+      return originalBeforeEach((to, from) => {
+        return new Promise((resolve, reject) => {
+          try {
+            guard(to, from, (value) => {
+              resolve(value === undefined ? true : value)
+            })
+          } catch (error) {
+            reject(error)
+          }
+        })
+      })
+    }
+
+    return originalBeforeEach(guard)
+  }
+}
+
 export const createApp = ViteSSG(
   App,
   { routes, base: import.meta.env.VITE_BASE_URL || '/' },
   ({ app, router, isClient }) => {
+    patchLegacyNextGuards(router)
     installRouterGuards(router, { isClient })
-    useAppSetup(app, { router, isClient })
+    useAppSetup(app, { isClient })
 
     if (isClient) {
       registerSW({ immediate: true })

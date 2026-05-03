@@ -1338,7 +1338,7 @@ import { useMainStore } from '@/store/main'
 import { useAuthStore } from '@/store/auth'
 import { useNavbarStore } from '@/store/navbar'
 import { usePlayerStore } from '@/store/player'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, markRaw, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useHead } from '@unhead/vue'
 import Notification from '@/components/notification/ToastMessage.vue'
@@ -1355,8 +1355,8 @@ const router = useRouter()
 const kp_id = ref(route.params.kp_id)
 const errorMessage = ref('')
 const errorCode = ref(null)
-const moviePlayerComponent = ref(null)
-const movieRatingComponent = ref(null)
+const moviePlayerComponent = shallowRef(null)
+const movieRatingComponent = shallowRef(null)
 const initialSeoEntry = getMovieSeoEntry(route.params.kp_id)
 const infoLoading = ref(!initialSeoEntry)
 const movieInfo = ref(
@@ -1923,8 +1923,8 @@ const handleNudityTimingsPopupOutsideClick = (event) => {
 
 onMounted(async () => {
   clientReady.value = true
-  moviePlayerComponent.value = (await import('@/components/PlayerComponent.vue')).default
-  movieRatingComponent.value = (await import('@/components/MovieRating.vue')).default
+  moviePlayerComponent.value = markRaw((await import('@/components/PlayerComponent.vue')).default)
+  movieRatingComponent.value = markRaw((await import('@/components/MovieRating.vue')).default)
   await fetchMovieInfo()
   infoLoading.value = false
   document.addEventListener('keydown', onKeyDown)
