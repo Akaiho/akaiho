@@ -331,12 +331,6 @@ paths:
           schema: { type: string, example: hot }
       responses: { '200': { description: OK } }
 
-  /get_dons:
-    get:
-      tags: [Movies]
-      summary: Список донатеров
-      responses: { '200': { description: OK } }
-
   /imdb_to_kp/{imdb_id}:
     get:
       tags: [Movies]
@@ -598,17 +592,6 @@ paths:
     get:
       tags: [Movies]
       summary: Случайный фильм
-      responses: { '200': { description: OK } }
-
-  /twitch/{username}:
-    get:
-      tags: [Movies]
-      summary: Данные Twitch-стрима
-      parameters:
-        - name: username
-          in: path
-          required: true
-          schema: { type: string }
       responses: { '200': { description: OK } }
 
   /movies/{kpId}/note:

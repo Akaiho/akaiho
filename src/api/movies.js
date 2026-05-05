@@ -174,7 +174,6 @@ const getDiscussedMovies = async (...args) => {
     })
   }
 }
-const getDons = async (...args) => callWithProvider('getDons', ...args)
 const getKpIDfromIMDB = async (...args) => callWithProvider('getKpIDfromIMDB', ...args)
 const getNudityInfoFromIMDB = async (...args) => callWithProvider('getNudityInfoFromIMDB', ...args)
 const getKpIDfromSHIKI = async (...args) => callWithProvider('getKpIDfromSHIKI', ...args)
@@ -197,7 +196,6 @@ const getRandomMovie = async (...args) => callWithProvider('getRandomMovie', ...
 const approveTiming = async (...args) => callWithProvider('approveTiming', ...args)
 const rejectTiming = async (...args) => callWithProvider('rejectTiming', ...args)
 const markAsCleanText = async (...args) => callWithProvider('markAsCleanText', ...args)
-const getTwitchStream = async (...args) => callWithProvider('getTwitchStream', ...args)
 const voteOnTiming = async (...args) => callWithProvider('voteOnTiming', ...args)
 const getTimingVote = async (...args) => callWithProvider('getTimingVote', ...args)
 const getMovieNote = async (...args) => callWithProvider('getMovieNote', ...args)
@@ -214,7 +212,6 @@ export {
   getShikiPlayers,
   getMovies,
   getDiscussedMovies,
-  getDons,
   getKpIDfromIMDB,
   getKpIDfromSHIKI,
   getRating,
@@ -235,7 +232,6 @@ export {
   approveTiming,
   rejectTiming,
   markAsCleanText,
-  getTwitchStream,
   voteOnTiming,
   getTimingVote,
   getMovieNote,

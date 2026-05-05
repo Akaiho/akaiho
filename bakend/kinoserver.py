@@ -266,21 +266,6 @@ def register_routes(app: Sanic) -> None:
         players = await kinobox_players_by_kp(app, kp_id, title=title)
         return json({"data": players})
 
-    @app.get("/get_dons")
-    async def get_dons(_: Request):
-        data = os.getenv("DONS_LIST", "XaksFlaX\nTanyaBelkova\nF1ashko\nKrabick\nKati\nTimofey")
-        return text(data)
-
-    @app.get("/twitch/<username:str>")
-    async def get_twitch_stream(_: Request, username: str):
-        return json(
-            {
-                "username": username,
-                "user_info": None,
-                "stream_data": [],
-            }
-        )
-
     @app.get("/timings/top")
     async def timings_top(_: Request):
         return json([])

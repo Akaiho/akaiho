@@ -72,11 +72,6 @@ const getDiscussedMovies = async (type = 'hot') => {
   return data
 }
 
-const getDons = async () => {
-  const { data } = await apiCall((api) => api.get('/get_dons'))
-  return data
-}
-
 const getKpIDfromIMDB = async (imdb_id) => {
   const { data } = await apiCall((api) => api.get(`/imdb_to_kp/${imdb_id}`))
   return data
@@ -195,11 +190,6 @@ const markAsCleanText = async (submissionId) => {
   return data
 }
 
-const getTwitchStream = async (username) => {
-  const { data } = await apiCall((api) => api.get(`/twitch/${username}`))
-  return data
-}
-
 const voteOnTiming = async (timingId, voteType) => {
   const { data } = await apiCall((api) =>
     api.post(`/timings/${timingId}/vote`, {
@@ -240,7 +230,6 @@ export {
   getShikiPlayers,
   getMovies,
   getDiscussedMovies,
-  getDons,
   getKpIDfromIMDB,
   getKpIDfromSHIKI,
   getRating,
@@ -261,7 +250,6 @@ export {
   approveTiming,
   rejectTiming,
   markAsCleanText,
-  getTwitchStream,
   voteOnTiming,
   getTimingVote,
   getMovieNote,

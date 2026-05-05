@@ -118,8 +118,6 @@
         </div>
       </div>
     </div>
-    <FooterDonaters />
-
     <RandomMovieModal
       :is-open="showRandomModal"
       :movie="randomMovie"
@@ -138,7 +136,6 @@ import { getMyLists, delAllFromList } from '@/api/user'
 import BaseModal from '@/components/BaseModal.vue'
 import DeleteButton from '@/components/buttons/DeleteButton.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
-import FooterDonaters from '@/components/FooterDonaters.vue'
 import { MovieList } from '@/components/MovieList/'
 import { useMainStore } from '@/store/main'
 import { useAuthStore } from '@/store/auth'

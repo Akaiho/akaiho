@@ -29,7 +29,6 @@
 - `POST /cache_shiki` (form-data: `shikimori`, `type=anime`)
 - `GET /top/{activeTime}?type={typeFilter}[&limit={limit}]`
 - `GET /discussed/{type}`
-- `GET /get_dons`
 - `GET /imdb_to_kp/{imdb_id}`
 - `GET /imdb_parental_guide/{imdb_id}`
 - `GET /shiki_to_kp/{shiki_id}`
@@ -50,7 +49,6 @@
 - `POST /timings/submission/{submissionId}/approve`
 - `POST /timings/submission/{submissionId}/reject`
 - `POST /timings/submission/{submissionId}/clean_text`
-- `GET /twitch/{username}`
 - `POST /timings/{timingId}/vote` body: `{ vote_type }`
 - `GET /timings/{timingId}/vote`
 - `GET /movies/{kpId}/note`
