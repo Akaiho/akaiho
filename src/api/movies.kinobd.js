@@ -446,6 +446,7 @@ const getKpInfo = async (kpId) => {
 
   return {
     ...mappedFilm,
+    nudity_timings: Array.isArray(rhFilm?.nudity_timings) ? rhFilm.nudity_timings : [],
     sequels_and_prequels: Array.isArray(rhFilm?.sequels_and_prequels)
       ? rhFilm.sequels_and_prequels
       : [],
@@ -567,7 +568,6 @@ const getRandomMovie = async () => {
   return { kp_id: pick?.kinopoisk_id || null, source: 'kinobd', film: buildLegacyMovie(pick) }
 }
 
-const getDons = async (...args) => rhserv.getDons(...args)
 const getKpIDfromSHIKI = async (...args) => rhserv.getKpIDfromSHIKI(...args)
 const getNudityInfoFromIMDB = async (...args) => rhserv.getNudityInfoFromIMDB(...args)
 const getRating = async (...args) => rhserv.getRating(...args)
@@ -586,7 +586,6 @@ const getAllTimingSubmissions = async (...args) => rhserv.getAllTimingSubmission
 const approveTiming = async (...args) => rhserv.approveTiming(...args)
 const rejectTiming = async (...args) => rhserv.rejectTiming(...args)
 const markAsCleanText = async (...args) => rhserv.markAsCleanText(...args)
-const getTwitchStream = async (...args) => rhserv.getTwitchStream(...args)
 const voteOnTiming = async (...args) => rhserv.voteOnTiming(...args)
 const getTimingVote = async (...args) => rhserv.getTimingVote(...args)
 const getMovieNote = async (...args) => rhserv.getMovieNote(...args)
@@ -603,7 +602,6 @@ export {
   getShikiPlayers,
   getMovies,
   getDiscussedMovies,
-  getDons,
   getKpIDfromIMDB,
   getKpIDfromSHIKI,
   getRating,
@@ -624,7 +622,6 @@ export {
   approveTiming,
   rejectTiming,
   markAsCleanText,
-  getTwitchStream,
   voteOnTiming,
   getTimingVote,
   getMovieNote,
