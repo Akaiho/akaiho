@@ -1,5 +1,4 @@
 import { normalizeBasePath } from './basePath'
-import movies from '../data/movies.json'
 import {
   buildFallbackSlug,
   getMovieIdentifier,
@@ -41,9 +40,6 @@ const normalizeMovie = (movie) => {
   }
 }
 
-const normalizedMovies = Array.isArray(movies) ? movies.map(normalizeMovie).filter(Boolean) : []
-const moviesByKpId = new Map(normalizedMovies.map((movie) => [movie.kp_id, movie]))
-
 const mergeMovieSeoEntries = (existing = {}, incoming = {}) => {
   const kpId = String(incoming?.kp_id || existing?.kp_id || '').trim()
 
@@ -70,7 +66,7 @@ const mergeMovieSeoEntries = (existing = {}, incoming = {}) => {
 }
 
 export const getMovieSeoEntry = (kpId) =>
-  runtimeMoviesByKpId.get(String(kpId)) || moviesByKpId.get(String(kpId)) || null
+  runtimeMoviesByKpId.get(String(kpId)) || null
 
 export const registerMovieSeoEntry = (movieLike = {}) => {
   const normalizedMovie = normalizeMovie(movieLike)
@@ -153,4 +149,3 @@ export const buildMovieSeo = (movieLike = {}, kpIdOverride = null) => {
   }
 }
 
-export const getPrerenderMovieSeoEntries = () => normalizedMovies.slice()

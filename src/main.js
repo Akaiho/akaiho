@@ -4,7 +4,6 @@ import { useThemeStore } from './store/theme'
 import { useAppSetup } from './composables/useAppSetup'
 import { routes } from './router/routes'
 import { installRouterGuards } from './router'
-import { buildMoviePath, getPrerenderMovieSeoEntries } from './utils/movieSeo'
 import App from './App.vue'
 
 const patchLegacyNextGuards = (router) => {
@@ -54,10 +53,5 @@ export const createApp = ViteSSG(
 )
 
 export const includedRoutes = async (paths) => {
-  const staticPaths = paths.filter((path) => !path.includes(':'))
-  const moviePaths = getPrerenderMovieSeoEntries().map((movie) =>
-    buildMoviePath(movie.kp_id, movie.slug)
-  )
-
-  return Array.from(new Set([...staticPaths, ...moviePaths]))
+  return paths.filter((path) => !path.includes(':'))
 }

@@ -1,10 +1,8 @@
-import movies from '../data/movies.json'
 import { describe, expect, it } from 'vitest'
 import {
   getMovieSeoEntry,
   getMovieSeoPath,
   getMovieSeoSlug,
-  getPrerenderMovieSeoEntries,
   registerMovieSeoEntry
 } from './movieSeo'
 import { getMovieIdentifier } from './movieSlug'
@@ -87,26 +85,7 @@ describe('movieSeo', () => {
     ).toBe('5591410')
   })
 
-  it('reads SEO entries from the static catalog without runtime registration', () => {
-    const staticMovie = movies.find((movie) => movie?.kp_id && movie?.title)
-
-    expect(staticMovie).toBeTruthy()
-    expect(getMovieSeoEntry(staticMovie.kp_id)).toMatchObject({
-      kp_id: String(staticMovie.kp_id),
-      title: staticMovie.title
-    })
-  })
-
-  it('returns normalized prerender entries from the static catalog', () => {
-    const entries = getPrerenderMovieSeoEntries()
-
-    expect(entries.length).toBeGreaterThan(0)
-    expect(entries[0]).toEqual(
-      expect.objectContaining({
-        kp_id: expect.any(String),
-        slug: expect.any(String),
-        title: expect.any(String)
-      })
-    )
+  it('returns null when seo entry is not registered at runtime', () => {
+    expect(getMovieSeoEntry('not-registered')).toBeNull()
   })
 })
