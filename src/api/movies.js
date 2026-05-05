@@ -42,6 +42,43 @@ const getCurrentSearchProvider = () => {
 const searchKinoBDPlayerCandidates = async (...args) => kinobd.searchPlayerCandidates(...args)
 const getKinoBDPlayerDataByInid = async (...args) => kinobd.getPlayerDataByInid(...args)
 
+const mergeTopRatingsFromKinoBd = (movies = [], kinoBdMovies = []) => {
+  const ratingsByKpId = new Map(
+    (Array.isArray(kinoBdMovies) ? kinoBdMovies : [])
+      .filter((item) => item?.kp_id)
+      .map((item) => [String(item.kp_id), item])
+  )
+
+  return (Array.isArray(movies) ? movies : []).map((movie) => {
+    const kpId = String(movie?.kp_id || '')
+    const kinoBdMatch = ratingsByKpId.get(kpId)
+
+    if (!kinoBdMatch) return movie
+
+    const ratingKp = kinoBdMatch.rating_kp ?? kinoBdMatch.average_rating ?? movie.rating_kp
+    const ratingImdb = kinoBdMatch.rating_imdb ?? movie.rating_imdb
+    const averageRating = kinoBdMatch.average_rating ?? ratingKp ?? movie.average_rating
+    const fallbackRating = kinoBdMatch.rating ?? movie.rating
+
+    return {
+      ...movie,
+      rating_kp: ratingKp,
+      rating_imdb: ratingImdb,
+      average_rating: averageRating,
+      rating: fallbackRating,
+      raw_data: {
+        ...(movie.raw_data || {}),
+        rating:
+          kinoBdMatch?.raw_data?.rating ??
+          fallbackRating ??
+          movie?.raw_data?.rating ??
+          movie?.rating ??
+          null
+      }
+    }
+  })
+}
+
 const callWithProvider = async (methodName, ...args) => {
   const provider = getCurrentProvider()
 
@@ -107,20 +144,32 @@ const getPlayers = async (...args) => callWithProvider('getPlayers', ...args)
 const getShikiPlayers = async (...args) => callWithProvider('getShikiPlayers', ...args)
 const getMovies = async (...args) => {
   try {
-    return await normalizeMovieListResponse(await kinobd.getMovies(...args), { enrichMissingSeo: true })
+    const rhservMovies = await rhserv.getMovies(...args)
+    const kinoBdMovies = await kinobd.getMovies(...args).catch(() => [])
+    const moviesWithKinoBdRatings = mergeTopRatingsFromKinoBd(rhservMovies, kinoBdMovies)
+
+    return await normalizeMovieListResponse(moviesWithKinoBdRatings, {
+      enrichMissingSeo: true
+    })
   } catch (error) {
-    console.warn('[movies] getMovies failed on KinoBD, fallback to RHServ', error)
-    return await normalizeMovieListResponse(await rhserv.getMovies(...args), { enrichMissingSeo: true })
+    console.warn('[movies] getMovies failed on RHServ, fallback to KinoBD', error)
+    return await normalizeMovieListResponse(await kinobd.getMovies(...args), {
+      enrichMissingSeo: true
+    })
   }
 }
 const getDiscussedMovies = async (...args) => {
   try {
-    return await normalizeMovieListResponse(await kinobd.getDiscussedMovies(...args), {
+    const rhservMovies = await rhserv.getDiscussedMovies(...args)
+    const kinoBdMovies = await kinobd.getDiscussedMovies().catch(() => [])
+    const moviesWithKinoBdRatings = mergeTopRatingsFromKinoBd(rhservMovies, kinoBdMovies)
+
+    return await normalizeMovieListResponse(moviesWithKinoBdRatings, {
       enrichMissingSeo: true
     })
   } catch (error) {
-    console.warn('[movies] getDiscussedMovies failed on KinoBD, fallback to RHServ', error)
-    return await normalizeMovieListResponse(await rhserv.getDiscussedMovies(...args), {
+    console.warn('[movies] getDiscussedMovies failed on RHServ, fallback to KinoBD', error)
+    return await normalizeMovieListResponse(await kinobd.getDiscussedMovies(...args), {
       enrichMissingSeo: true
     })
   }
