@@ -11,7 +11,7 @@ const KINOBOX_USE_PROXY =
 const KINOBOX_PREFERRED_TYPE = String(import.meta.env.VITE_KINOBOX_PREFERRED_TYPE || '')
   .trim()
   .toLowerCase()
-const KINOBOX_DISABLED_TYPES = (import.meta.env.VITE_KINOBOX_DISABLED_TYPES || 'aloha', 'flixcdn')
+const KINOBOX_DISABLED_TYPES = (import.meta.env.VITE_KINOBOX_DISABLED_TYPES || 'alloha')
   .split(',')
   .map((item) => item.trim().toLowerCase())
   .filter(Boolean)

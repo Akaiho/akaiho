@@ -37,7 +37,7 @@ const DEFAULT_PLAYER_PROVIDERS = [
   'torrent',
   'vk'
 ].join(',')
-const HIDDEN_PLAYER_PROVIDERS = new Set(['trailer', 'trailer_local', 'netflix', 'nf', 'flixcdn'])
+const HIDDEN_PLAYER_PROVIDERS = new Set(['trailer', 'trailer_local', 'netflix', 'nf', 'alloha'])
 
 const getApi = () => {
   if (apiInstance) return apiInstance
