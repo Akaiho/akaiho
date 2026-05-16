@@ -1733,9 +1733,10 @@ const fetchMovieInfo = async (updateHistory = true) => {
     )
     if (!kp_id.value.startsWith('shiki') && isAnime) {
       const shikiKind = movieInfo.value.film_length ? 'movie' : 'tv'
+      const shikiYear = Number.parseInt(movieInfo.value.year, 10) || null
       const shikiData = await fetchShikiRating(
         movieInfo.value.title || movieInfo.value.name_ru,
-        movieInfo.value.rates,
+        shikiYear,
         shikiKind
       )
       if (shikiData) {
