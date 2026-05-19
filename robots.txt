@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /auth-success
+Disallow: /akaiho/auth-success
 
 Sitemap: https://akaiho.github.io/akaiho/sitemap.xml
