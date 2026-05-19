@@ -2,7 +2,9 @@ import noPosterImage from '@/assets/image-no-poster.gif'
 
 export const TYPES_ENUM = {
   FILM: 'Фильм',
+  film: 'Фильм',
   TV_SERIES: 'Сериал',
+  serial: 'Сериал',
   VIDEO: 'Видео',
   TV_SHOW: 'ТВ-шоу',
   MINI_SERIES: 'Мини-сериал',

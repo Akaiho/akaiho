@@ -1,11 +1,23 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   getMovieSeoEntry,
   getMovieSeoPath,
   getMovieSeoSlug,
+  getPrerenderMovieSeoEntries,
   registerMovieSeoEntry
 } from './movieSeo'
 import { getMovieIdentifier } from './movieSlug'
+
+vi.mock('../api/movies.kinobd', () => ({
+  getMovies: vi.fn(async () => [
+    {
+      kp_id: '5591410',
+      title: 'Молодой Шерлок',
+      name_original: 'Young Sherlock',
+      year: '2025'
+    }
+  ])
+}))
 
 describe('movieSeo', () => {
   it('prefers the original Latin title over a stale fallback slug', () => {
@@ -85,7 +97,24 @@ describe('movieSeo', () => {
     ).toBe('5591410')
   })
 
-  it('returns null when seo entry is not registered at runtime', () => {
-    expect(getMovieSeoEntry('not-registered')).toBeNull()
+  it('reads SEO entries from the static catalog after lazy loading', async () => {
+    await getPrerenderMovieSeoEntries()
+    expect(getMovieSeoEntry('5591410')).toMatchObject({
+      kp_id: '5591410',
+      title: 'Молодой Шерлок'
+    })
+  })
+
+  it('returns normalized prerender entries from the static catalog', async () => {
+    const entries = await getPrerenderMovieSeoEntries()
+
+    expect(entries.length).toBeGreaterThan(0)
+    expect(entries[0]).toEqual(
+      expect.objectContaining({
+        kp_id: expect.any(String),
+        slug: expect.any(String),
+        title: expect.any(String)
+      })
+    )
   })
 })

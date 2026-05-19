@@ -26,6 +26,11 @@ const apiSearch = async (searchTerm) => {
   return data
 }
 
+const getShikiInfo = async (shikiId) => {
+  const { data } = await apiCall((api) => api.get(`/shiki_info/${shikiId}`))
+  return data
+}
+
 const getKpInfo = async (kpId) => {
   const { data } = await apiCall((api) => api.get(`/kp_info2/${kpId}`))
   return data
@@ -59,16 +64,31 @@ const getShikiPlayers = async (shikiId) => {
   return data
 }
 
-const getMovies = async ({ activeTime = 'all', typeFilter = 'all', limit = null } = {}) => {
+const getMovies = async ({
+  activeTime = 'all',
+  typeFilter = 'all',
+  limit = null,
+  page = null
+} = {}) => {
   const limitParam = limit ? `&limit=${limit}` : ''
+  const pageParam = page ? `&page=${page}` : ''
   const { data } = await apiCall((api) =>
-    api.get(`/top/${activeTime}?type=${typeFilter}${limitParam}`)
+    api.get(`/top/${activeTime}?type=${typeFilter}${limitParam}${pageParam}`)
   )
   return data
 }
 
-const getDiscussedMovies = async (type = 'hot') => {
-  const { data } = await apiCall((api) => api.get(`/discussed/${type}`))
+const getDiscussedMovies = async (type = 'hot', { page = null, limit = null } = {}) => {
+  const params = new URLSearchParams()
+  if (page) params.set('page', String(page))
+  if (limit) params.set('limit', String(limit))
+  const query = params.toString()
+  const { data } = await apiCall((api) => api.get(`/discussed/${type}${query ? `?${query}` : ''}`))
+  return data
+}
+
+const getDons = async () => {
+  const { data } = await apiCall((api) => api.get('/get_dons'))
   return data
 }
 
@@ -190,6 +210,11 @@ const markAsCleanText = async (submissionId) => {
   return data
 }
 
+const getTwitchStream = async (username) => {
+  const { data } = await apiCall((api) => api.get(`/twitch/${username}`))
+  return data
+}
+
 const voteOnTiming = async (timingId, voteType) => {
   const { data } = await apiCall((api) =>
     api.post(`/timings/${timingId}/vote`, {
@@ -225,11 +250,13 @@ const deleteMovieNote = async (kpId) => {
 
 export {
   apiSearch,
+  getShikiInfo,
   getKpInfo,
   getPlayers,
   getShikiPlayers,
   getMovies,
   getDiscussedMovies,
+  getDons,
   getKpIDfromIMDB,
   getKpIDfromSHIKI,
   getRating,
@@ -250,6 +277,7 @@ export {
   approveTiming,
   rejectTiming,
   markAsCleanText,
+  getTwitchStream,
   voteOnTiming,
   getTimingVote,
   getMovieNote,

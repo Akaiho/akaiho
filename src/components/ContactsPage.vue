@@ -2,13 +2,11 @@
   <div class="contact-text">
     <p>
       Если Вы владелец авторских прав, просим Вас учесть, что все плееры на сайте из сторонних API
-      источников. Напишите на почту или в Телеграм с подтверждением авторских прав для удаления
-      контента с сайта.
+      источников.
     </p>
     <p>
       If you are a copyright owner, please note that all players on the site are from third-party
-      API sources. Please write to email or Telegram with confirmation of copyright for the removal
-      of content from the site.
+      API sources.
     </p>
     <p>
       <a href="mailto:akaiho@proton.me">akaiho@proton.me</a>

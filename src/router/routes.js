@@ -95,5 +95,13 @@ export const routes = [
     meta: {
       title: 'Ahaiho - Логин'
     }
+  },
+  {
+    path: '/links',
+    name: 'links',
+    component: () => import('@/components/Links.vue'),
+    meta: {
+      title: 'Akaiho - Полезные ссылки'
+    }
   }
 ]

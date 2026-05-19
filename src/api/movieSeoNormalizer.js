@@ -8,7 +8,6 @@ import {
 
 const SEO_ENRICHMENT_BATCH_SIZE = 5
 const seoEnrichmentPromises = new Map()
-let isKinoBdSeoEnrichmentDisabled = false
 
 const mergeRawData = (item, seoEntry) => {
   if (!seoEntry) return item?.raw_data
@@ -29,7 +28,9 @@ export const normalizeMovieListEntry = (item, seoEntry = null) => {
   if (!kpId) return item
 
   const existingEntry = getMovieSeoEntry(kpId)
-  const registeredEntry = needsMovieSeoEnrichment(item, kpId) ? existingEntry : registerMovieSeoEntry(item)
+  const registeredEntry = needsMovieSeoEnrichment(item, kpId)
+    ? existingEntry
+    : registerMovieSeoEntry(item)
   const canonicalEntry = seoEntry || registeredEntry || existingEntry
   const rawData = mergeRawData(item, canonicalEntry)
   const movieForSeo = {
@@ -49,18 +50,11 @@ export const normalizeMovieListEntry = (item, seoEntry = null) => {
 }
 
 const getMovieSeoEnrichment = async (kpId) => {
-  if (isKinoBdSeoEnrichmentDisabled) return null
-
   if (!seoEnrichmentPromises.has(kpId)) {
     const enrichmentPromise = kinobd
       .getMovieSeoByKpId(kpId)
       .then((movie) => (movie ? registerMovieSeoEntry(movie) : null))
-      .catch((error) => {
-        if (error?.response?.status >= 500) {
-          isKinoBdSeoEnrichmentDisabled = true
-        }
-        return null
-      })
+      .catch(() => null)
 
     seoEnrichmentPromises.set(kpId, enrichmentPromise)
   }

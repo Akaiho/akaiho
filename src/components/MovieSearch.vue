@@ -76,6 +76,21 @@
               <p>Здесь пока пусто</p>
               <h2>Популярное сейчас</h2>
               <MovieList :movies-list="topMovies" :is-history="false" :loading="false" />
+              <div v-if="canLoadMoreTopMovies" class="home-load-more">
+                <div
+                  ref="homeTopSentinel"
+                  class="home-load-more__sentinel"
+                  aria-hidden="true"
+                ></div>
+                <button
+                  class="home-load-more__button"
+                  type="button"
+                  :disabled="topMoviesLoadingMore"
+                  @click="loadMoreHomeTopMovies"
+                >
+                  {{ topMoviesLoadingMore ? 'Р—Р°РіСЂСѓР¶Р°РµРј...' : 'РџРѕРєР°Р·Р°С‚СЊ РµС‰Рµ' }}
+                </button>
+              </div>
             </template>
             <template v-else-if="topMoviesLoading">
               <SpinnerLoading />
@@ -118,6 +133,7 @@
         </div>
       </div>
     </div>
+
     <RandomMovieModal
       :is-open="showRandomModal"
       :movie="randomMovie"
@@ -130,7 +146,14 @@
 </template>
 
 <script setup>
-import { apiSearch, getKpIDfromIMDB, getMovies, getRandomMovie, getKpInfo } from '@/api/movies'
+import {
+  apiSearch,
+  getKpIDfromIMDB,
+  getKpIDfromSHIKI,
+  getMovies,
+  getRandomMovie,
+  getKpInfo
+} from '@/api/movies'
 import { handleApiError } from '@/constants'
 import { getMyLists, delAllFromList } from '@/api/user'
 import BaseModal from '@/components/BaseModal.vue'
@@ -143,13 +166,13 @@ import { USER_LIST_TYPES_ENUM } from '@/constants'
 import { hasConsecutiveConsonants, suggestLayout, convertLayout } from '@/utils/keyboardLayout'
 import { normalizeBasePath } from '@/utils/basePath'
 import debounce from 'lodash.debounce'
-import { onMounted, onServerPrefetch, ref, watch, computed } from 'vue'
+import { nextTick, onMounted, onServerPrefetch, onUnmounted, ref, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useHead } from '@unhead/vue'
-import axios from 'axios'
 import SpinnerLoading from '@/components/SpinnerLoading.vue'
 import RandomMovieModal from '@/components/RandomMovieModal.vue'
 import { getMovieSeoPath } from '@/utils/movieSeo'
+import { debugLog } from '@/utils/logger'
 
 const mainStore = useMainStore()
 const authStore = useAuthStore()
@@ -168,6 +191,26 @@ const isMobile = computed(() => mainStore.isMobile)
 const history = ref([])
 const topMovies = ref([])
 const topMoviesLoading = ref(false)
+const topMoviesLoadingMore = ref(false)
+const topMoviesPage = ref(1)
+const topMoviesHasMore = ref(true)
+const homeTopSentinel = ref(null)
+const HOME_TOP_PAGE_SIZE = 24
+let homeTopObserver = null
+
+const dedupeMoviesByKpId = (items = []) => {
+  const seen = new Set()
+  const result = []
+
+  for (const item of items) {
+    const kpId = String(item?.kp_id || item?.kinopoisk_id || item?.id || '').trim()
+    if (!kpId || seen.has(kpId)) continue
+    seen.add(kpId)
+    result.push(item)
+  }
+
+  return result
+}
 
 const showLayoutWarning = ref(false)
 const suggestedLayout = ref('')
@@ -210,14 +253,14 @@ useHead({
         {
           '@context': 'https://schema.org',
           '@type': 'Organization',
-          name: 'akaiho',
+          name: 'Akaiho',
           url: canonicalUrl,
           logo: `${siteOrigin}${basePath || ''}/icons/icon-192x192.png`
         },
         {
           '@context': 'https://schema.org',
           '@type': 'WebSite',
-          name: 'akaiho',
+          name: 'Akaiho',
           url: canonicalUrl,
           inLanguage: 'ru',
           potentialAction: {
@@ -234,19 +277,101 @@ useHead({
 const loadHomeTopMovies = async () => {
   topMoviesLoading.value = true
   try {
-    topMovies.value = await getMovies({
+    topMoviesPage.value = 1
+    const movies = await getMovies({
       activeTime: '24h',
-      typeFilter: 'all'
+      typeFilter: 'all',
+      page: 1,
+      limit: HOME_TOP_PAGE_SIZE
     })
+    topMoviesHasMore.value = Array.isArray(movies) && movies.length === HOME_TOP_PAGE_SIZE
+    topMovies.value = dedupeMoviesByKpId(Array.isArray(movies) ? movies : [])
   } catch (error) {
     console.error('Ошибка загрузки топов для главной:', error)
     topMovies.value = []
+    topMoviesHasMore.value = false
   } finally {
     topMoviesLoading.value = false
   }
 }
 
+const canLoadMoreTopMovies = computed(
+  () =>
+    !searchTerm.value &&
+    history.value.length === 0 &&
+    topMovies.value.length > 0 &&
+    topMoviesHasMore.value &&
+    !topMoviesLoading.value
+)
+
+const loadMoreHomeTopMovies = async () => {
+  if (topMoviesLoadingMore.value || topMoviesLoading.value || !topMoviesHasMore.value) return
+
+  topMoviesLoadingMore.value = true
+
+  try {
+    const nextPage = topMoviesPage.value + 1
+    const movies = await getMovies({
+      activeTime: '24h',
+      typeFilter: 'all',
+      page: nextPage,
+      limit: HOME_TOP_PAGE_SIZE
+    })
+    const nextMovies = dedupeMoviesByKpId(Array.isArray(movies) ? movies : [])
+
+    topMoviesHasMore.value = Array.isArray(movies) && movies.length === HOME_TOP_PAGE_SIZE
+    topMoviesPage.value = nextPage
+
+    if (nextMovies.length > 0) {
+      topMovies.value = dedupeMoviesByKpId([...topMovies.value, ...nextMovies])
+    } else {
+      topMoviesHasMore.value = false
+    }
+  } catch (error) {
+    console.error('РћС€РёР±РєР° РґРѕРіСЂСѓР·РєРё С‚РѕРїРѕРІ РґР»СЏ РіР»Р°РІРЅРѕР№:', error)
+    topMoviesHasMore.value = false
+  } finally {
+    topMoviesLoadingMore.value = false
+  }
+}
+
+const disconnectHomeTopInfiniteScroll = () => {
+  homeTopObserver?.disconnect()
+  homeTopObserver = null
+}
+
+const setupHomeTopInfiniteScroll = async () => {
+  if (typeof window === 'undefined' || !('IntersectionObserver' in window)) return
+
+  await nextTick()
+  disconnectHomeTopInfiniteScroll()
+
+  if (!homeTopSentinel.value) return
+
+  homeTopObserver = new window.IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        loadMoreHomeTopMovies()
+      }
+    },
+    {
+      rootMargin: '900px 0px',
+      threshold: 0
+    }
+  )
+
+  homeTopObserver.observe(homeTopSentinel.value)
+}
+
 onServerPrefetch(loadHomeTopMovies)
+
+watch(canLoadMoreTopMovies, (canLoad) => {
+  if (canLoad) {
+    setupHomeTopInfiniteScroll()
+  } else {
+    disconnectHomeTopInfiniteScroll()
+  }
+})
 
 watch(
   () => authStore.token,
@@ -384,102 +509,18 @@ const performSearch = async () => {
       if (!/^\d+$/.test(searchTerm.value)) {
         searchTerm.value = searchTerm.value.replace(/\D/g, '')
       }
-      const shikiId = String(searchTerm.value || '').trim()
-      if (!shikiId) {
-        throw new Error('РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ ID Shikimori')
+
+      try {
+        const response = await getKpIDfromSHIKI(searchTerm.value)
+        if (response.id_kp) {
+          router.push(getMovieSeoPath({ kp_id: `${response.id_kp}` }))
+          return
+        }
+      } catch (e) {
+        debugLog('Switch to kodik', e)
       }
 
-      const normalizeText = (value) =>
-        String(value || '')
-          .toLowerCase()
-          .replace(/ё/g, 'е')
-          .replace(/[^\p{L}\p{N}]+/gu, ' ')
-          .trim()
-      const normalizeKpId = (value) => String(value || '').replace(/\D+/g, '')
-      const extractYear = (value) => {
-        const raw = String(value || '')
-        const yearMatch = raw.match(/\b(19|20)\d{2}\b/)
-        return yearMatch ? Number(yearMatch[0]) : null
-      }
-      const collectTitles = (movie) =>
-        [
-          movie?.title,
-          movie?.name_ru,
-          movie?.name_en,
-          movie?.name_original,
-          movie?.raw_data?.title,
-          movie?.raw_data?.title_orig,
-          movie?.raw_data?.name_ru,
-          movie?.raw_data?.name_en,
-          movie?.raw_data?.name_original
-        ]
-          .map(normalizeText)
-          .filter(Boolean)
-      const isAnimeCandidate = (movie) => {
-        const type = String(movie?.raw_data?.type || movie?.type || '').toLowerCase()
-        const genres = Array.isArray(movie?.raw_data?.genres)
-          ? movie.raw_data.genres
-          : Array.isArray(movie?.genres)
-            ? movie.genres
-            : []
-        const genresText = genres
-          .map((genre) => String(genre?.genre || genre?.name || genre || '').toLowerCase())
-          .join(' ')
-        return (
-          type.includes('anime') || genresText.includes('аниме') || genresText.includes('anime')
-        )
-      }
-
-      const shikiResponse = await axios.get(`https://shikimori.io/api/animes/${shikiId}`)
-      const shikiData = shikiResponse?.data || {}
-      const searchQuery = String(shikiData?.russian || shikiData?.name || '').trim()
-      if (!searchQuery) {
-        throw new Error('РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ РЅР°Р·РІР°РЅРёРµ РёР· Shikimori')
-      }
-
-      const shikiTitleRu = normalizeText(shikiData?.russian)
-      const shikiTitleEn = normalizeText(shikiData?.name)
-      const shikiYear = extractYear(shikiData?.aired_on || shikiData?.released_on)
-
-      const candidates = await apiSearch(searchQuery)
-      if (!Array.isArray(candidates) || candidates.length === 0) {
-        throw new Error('РќРёС‡РµРіРѕ РЅРµ РЅР°Р№РґРµРЅРѕ')
-      }
-
-      const scoreCandidate = (movie) => {
-        const titles = collectTitles(movie)
-        const movieYear = extractYear(
-          movie?.year || movie?.raw_data?.year || movie?.raw_data?.startYear
-        )
-        const exactTitleMatch = titles.some(
-          (title) => title === shikiTitleRu || title === shikiTitleEn
-        )
-        const looseTitleMatch = titles.some(
-          (title) =>
-            (shikiTitleRu && title.includes(shikiTitleRu)) ||
-            (shikiTitleEn && title.includes(shikiTitleEn))
-        )
-        const yearMatch = Boolean(shikiYear && movieYear && shikiYear === movieYear)
-        const animeMatch = isAnimeCandidate(movie)
-
-        let score = 0
-        if (exactTitleMatch) score += 100
-        if (looseTitleMatch) score += 40
-        if (yearMatch) score += 20
-        if (animeMatch) score += 10
-        return score
-      }
-
-      const bestCandidate = [...candidates].sort((a, b) => scoreCandidate(b) - scoreCandidate(a))[0]
-      const kpId = normalizeKpId(
-        bestCandidate?.id || bestCandidate?.kp_id || bestCandidate?.kinopoisk_id
-      )
-
-      if (kpId) {
-        router.push(getMovieSeoPath({ kp_id: kpId }))
-      } else {
-        throw new Error('Не найден ID Кинопоиска')
-      }
+      router.push({ name: 'movie-info-shiki', params: { shiki_id: `shiki${searchTerm.value}` } })
       return
     }
     if (searchType.value === 'title') {
@@ -548,7 +589,9 @@ const debouncedPerformSearch = debounce(() => {
 
 onMounted(() => {
   if (!topMovies.value.length) {
-    loadHomeTopMovies()
+    loadHomeTopMovies().then(setupHomeTopInfiniteScroll)
+  } else {
+    setupHomeTopInfiniteScroll()
   }
   const hash = window.location.hash
   if (hash.startsWith('#search=')) {
@@ -568,6 +611,8 @@ onMounted(() => {
   }
   searchInput.value?.focus()
 })
+
+onUnmounted(disconnectHomeTopInfiniteScroll)
 
 // Автопоиск с задержкой (только для поиска по названию)
 watch(searchTerm, () => {
@@ -880,6 +925,38 @@ h2 {
 
 .empty-history > div {
   width: 100%;
+}
+
+.home-load-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 20px 0 10px;
+}
+
+.home-load-more__sentinel {
+  width: 100%;
+  height: 1px;
+}
+
+.home-load-more__button {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: var(--accent-color);
+  color: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  padding: 10px 18px;
+}
+
+.home-load-more__button:hover {
+  background: var(--accent-hover);
+}
+
+.home-load-more__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
 }
 
 @media (max-width: 600px) {

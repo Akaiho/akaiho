@@ -8,6 +8,8 @@
         :alt="movie.title ? `Постер ${movie.title}` : 'Постер фильма'"
         width="300"
         height="450"
+        :loading="imageLoading"
+        :fetchpriority="imageFetchPriority"
         decoding="async"
       />
       <img
@@ -17,7 +19,8 @@
         :alt="movie.title ? `Постер ${movie.title}` : 'Постер фильма'"
         width="300"
         height="450"
-        loading="lazy"
+        :loading="imageLoading"
+        :fetchpriority="imageFetchPriority"
         decoding="async"
       />
       <DeleteButton
@@ -26,32 +29,25 @@
         data-test-id="delete-button"
         @click.stop.prevent="emit('remove:from-history', movie.kp_id)"
       />
-      <div
-        v-if="movie.rating_kp || movie.rating_imdb || movie.average_rating"
-        class="ratings-overlay"
-      >
+      <div v-if="ratingKp || ratingImdb || ourRating" class="ratings-overlay">
         <span
-          v-if="movie.rating || movie.average_rating"
+          v-if="ourRating"
           class="rating-our"
           :class="{
             'with-star': showStar,
-            [getRatingColor(movie.rating || movie.average_rating)]: true
+            [getRatingColor(ourRating)]: true
           }"
         >
           <img :src="appLogoUrl" alt="Ahaiho" class="rating-logo" />
-          {{ `${(movie.rating || movie.average_rating).toFixed(1).replace(/\.0$/, '')}` }}
+          {{ `${Number(ourRating).toFixed(1).replace(/\.0$/, '')}` }}
         </span>
-        <span v-if="movie.rating_kp" class="rating-kp" :class="getRatingColor(movie.rating_kp)">
+        <span v-if="ratingKp" class="rating-kp" :class="getRatingColor(ratingKp)">
           <img :src="kpLogoUrl" alt="КП" class="rating-logo" />
-          {{ movie.rating_kp }}
+          {{ ratingKp }}
         </span>
-        <span
-          v-if="movie.rating_imdb"
-          class="rating-imdb"
-          :class="getRatingColor(movie.rating_imdb)"
-        >
+        <span v-if="ratingImdb" class="rating-imdb" :class="getRatingColor(ratingImdb)">
           <img :src="imdbLogoUrl" alt="IMDb" class="rating-logo" />
-          {{ movie.rating_imdb }}
+          {{ ratingImdb }}
         </span>
       </div>
       <div v-if="movie.type && TYPES_ENUM[movie.type]" class="poster-type">
@@ -85,7 +81,8 @@ const {
   isUserList = false,
   showDelete = true,
   showStar = false,
-  variant = 'default'
+  variant = 'default',
+  priority = false
 } = defineProps({
   movie: Object,
   isMobile: Boolean,
@@ -93,7 +90,8 @@ const {
   isUserList: Boolean,
   showDelete: Boolean,
   showStar: Boolean,
-  variant: String
+  variant: String,
+  priority: Boolean
 })
 
 const emit = defineEmits(['remove:from-history'])
@@ -102,6 +100,11 @@ const isServerRender = import.meta.env.SSR
 const posterSrc = computed(() => {
   return resolvePosterByMovie(movie)
 })
+const ratingKp = computed(() => movie?.rating_kp ?? movie?.rating_kinopoisk ?? null)
+const ratingImdb = computed(() => movie?.rating_imdb ?? null)
+const ourRating = computed(() => movie?.rating ?? movie?.average_rating ?? null)
+const imageLoading = computed(() => (priority ? 'eager' : 'lazy'))
+const imageFetchPriority = computed(() => (priority ? 'high' : 'low'))
 </script>
 
 <style scoped>

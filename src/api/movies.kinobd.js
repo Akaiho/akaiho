@@ -15,6 +15,7 @@ const DEFAULT_PLAYER_PROVIDERS = [
   'alloha',
   'kodik',
   'kinotochka',
+  'flixcdn',
   'ashdi',
   'turbo',
   'videocdn',
@@ -30,14 +31,25 @@ const DEFAULT_PLAYER_PROVIDERS = [
   'kholobok',
   'videoapi',
   'voidboost',
+  'trailer_local',
   'videoseed',
   'ia',
   'youtube',
   'ext',
+  'trailer',
+  'netflix',
   'torrent',
-  'vk'
+  'vk',
+  'nf'
 ].join(',')
-const HIDDEN_PLAYER_PROVIDERS = new Set(['trailer', 'trailer_local', 'netflix', 'nf'])
+const HIDDEN_KINOBD_PROVIDERS = new Set([
+  'trailer',
+  'trailer_local',
+  'netflix',
+  'nf',
+  'torrent',
+  'youtube'
+])
 
 const getApi = () => {
   if (apiInstance) return apiInstance
@@ -170,13 +182,12 @@ const extractKinopoiskRating = (film) => {
 }
 
 const extractImdbRating = (film) => {
-  const rating = film?.rating_imdb ?? film?.ratings?.imdb ?? null
+  const rating = film?.rating_imdb ?? film?.ratingImdb ?? film?.ratings?.imdb ?? null
   const voteCount =
     film?.rating_imdb_count ??
-    film?.rating_imdb_vote_count ??
+    film?.ratingImdbVoteCount ??
     film?.ratings_count_imdb ??
     film?.ratings?.imdb_count ??
-    film?.ratings?.imdb_vote_count ??
     0
 
   return { rating, voteCount }
@@ -190,20 +201,9 @@ const buildLegacyMovie = (film) => {
   const titleBase = nameRu || nameEn || 'Без названия'
   const title = year ? `${titleBase} (${year})` : titleBase
   const { rating: ratingKp, voteCount: ratingKpCount } = extractKinopoiskRating(film)
-  const { rating: ratingImdb } = extractImdbRating(film)
+  const { rating: ratingImdb, voteCount: ratingImdbCount } = extractImdbRating(film)
   const normalizedRating =
     ratingKp === null || ratingKp === undefined || ratingKp === '' ? 'null' : String(ratingKp)
-  const normalizedKpRating =
-    ratingKp === null || ratingKp === undefined || ratingKp === '' || Number.isNaN(Number(ratingKp))
-      ? null
-      : Number(ratingKp)
-  const normalizedImdbRating =
-    ratingImdb === null ||
-    ratingImdb === undefined ||
-    ratingImdb === '' ||
-    Number.isNaN(Number(ratingImdb))
-      ? null
-      : Number(ratingImdb)
   const posters = resolvePosterSetByMovie({
     ...film,
     kp_id: kpId
@@ -215,9 +215,20 @@ const buildLegacyMovie = (film) => {
     title,
     year: year ? String(year) : '',
     poster: posters.preview,
-    average_rating: normalizedKpRating,
-    rating_kp: normalizedKpRating,
-    rating_imdb: normalizedImdbRating,
+    average_rating:
+      ratingKp === null || ratingKp === undefined || Number.isNaN(Number(ratingKp))
+        ? null
+        : Number(ratingKp),
+    rating_kp:
+      ratingKp === null || ratingKp === undefined || ratingKp === '' ? null : Number(ratingKp),
+    rating_kinopoisk:
+      ratingKp === null || ratingKp === undefined || ratingKp === '' ? null : Number(ratingKp),
+    rating_kinopoisk_vote_count: Number(ratingKpCount) || 0,
+    rating_imdb:
+      ratingImdb === null || ratingImdb === undefined || ratingImdb === ''
+        ? null
+        : Number(ratingImdb),
+    rating_imdb_vote_count: Number(ratingImdbCount) || 0,
     raw_data: {
       film_id: kpId,
       name_ru: nameRu,
@@ -230,6 +241,11 @@ const buildLegacyMovie = (film) => {
       genres: parseGenres(film),
       rating: normalizedRating,
       rating_vote_count: ratingKpCount || 0,
+      rating_imdb:
+        ratingImdb === null || ratingImdb === undefined || ratingImdb === ''
+          ? null
+          : String(ratingImdb),
+      rating_imdb_vote_count: Number(ratingImdbCount) || 0,
       poster_url: posters.full,
       poster_url_preview: posters.preview
     },
@@ -242,7 +258,6 @@ const mapKpInfo = (film) => {
   const countries = parseCountries(film)
   const genres = parseGenres(film)
   const { rating: ratingKp, voteCount: ratingKpCount } = extractKinopoiskRating(film)
-  const { rating: ratingImdb, voteCount: ratingImdbCount } = extractImdbRating(film)
 
   return {
     ...film,
@@ -264,6 +279,14 @@ const mapKpInfo = (film) => {
     logo_url: '',
     screenshots: [legacy.raw_data.poster_url].filter(Boolean),
     nudity_timings: [],
+    videos: film?.yt_video_id
+      ? [
+          {
+            name: 'YouTube Trailer',
+            iframeUrl: `https://www.youtube.com/embed/${film.yt_video_id}`
+          }
+        ]
+      : [],
     sequels_and_prequels: [],
     similars: [],
     staff: [],
@@ -271,12 +294,7 @@ const mapKpInfo = (film) => {
     rating_vote_count: legacy.raw_data.rating_vote_count,
     rating_kinopoisk:
       ratingKp === null || ratingKp === undefined || ratingKp === '' ? null : Number(ratingKp),
-    rating_kinopoisk_vote_count: Number(ratingKpCount) || 0,
-    rating_imdb:
-      ratingImdb === null || ratingImdb === undefined || ratingImdb === ''
-        ? null
-        : Number(ratingImdb),
-    rating_imdb_vote_count: Number(ratingImdbCount) || 0
+    rating_kinopoisk_vote_count: Number(ratingKpCount) || 0
   }
 }
 
@@ -295,7 +313,7 @@ const normalizeProviderToken = (value) =>
 
 const isHiddenProvider = (value) => {
   const token = normalizeProviderToken(value)
-  return HIDDEN_PLAYER_PROVIDERS.has(token)
+  return HIDDEN_KINOBD_PROVIDERS.has(token)
 }
 
 const resolveProviderName = (provider, value) => {
@@ -331,6 +349,18 @@ const buildPlayersMap = (items = []) => {
       warning: false,
       source: 'kinobd',
       raw_data: item
+    }
+
+    if (item?.yt_video_id) {
+      const trailerKey = ensureUniqueKey(players, 'TRAILER>YouTube')
+      players[trailerKey] = {
+        name: trailerKey,
+        translate: 'YouTube Trailer',
+        iframe: `https://www.youtube.com/embed/${item.yt_video_id}`,
+        quality: '',
+        warning: false,
+        source: 'kinobd'
+      }
     }
   }
 
@@ -393,6 +423,13 @@ const getPlayerDataByInid = async (
   { playerUrl = '', cacheKey = '', providers = DEFAULT_PLAYER_PROVIDERS, fast = 1 } = {}
 ) => {
   const resolvedPlayerUrl = toAbsoluteUrl(playerUrl)
+  const playerOrigin = (() => {
+    try {
+      return resolvedPlayerUrl ? new URL(resolvedPlayerUrl).origin : ''
+    } catch {
+      return ''
+    }
+  })()
 
   const params = cacheKey ? `cache${cacheKey}` : `cache${inid}`
   const body = new URLSearchParams({
@@ -403,6 +440,10 @@ const getPlayerDataByInid = async (
 
   const headers = { 'Content-Type': 'application/x-www-form-urlencoded' }
   if (resolvedPlayerUrl) headers['X-Re'] = resolvedPlayerUrl
+  if (playerOrigin && import.meta.env.SSR) {
+    headers.Origin = playerOrigin
+    headers.Referer = `${playerOrigin}/`
+  }
 
   const { data } = await apiCall((api) =>
     api.post(`/playerdata?${params}`, body.toString(), {
@@ -428,25 +469,25 @@ const apiSearch = async (searchTerm, page = 1) => {
 }
 
 const getKpInfo = async (kpId) => {
-  const kbResponse = await apiCall((api) =>
-    api.get('/api/films/search/kp_id', {
-      params: {
-        q: String(kpId),
-        page: 1,
-        with: 'persons,genres,countries,popularity,images'
-      }
-    })
-  )
+  const [kbResponse, rhFilm] = await Promise.all([
+    apiCall((api) =>
+      api.get('/api/films/search/kp_id', {
+        params: {
+          q: String(kpId),
+          page: 1,
+          with: 'persons,genres,countries,popularity,images'
+        }
+      })
+    ),
+    rhserv.getKpInfo(kpId).catch(() => null)
+  ])
 
   const film = Array.isArray(kbResponse?.data?.data) ? kbResponse.data.data[0] : null
   if (!film) return null
 
   const mappedFilm = mapKpInfo(film)
-  const rhFilm = await rhserv.getKpInfo(kpId).catch(() => null)
-
   return {
     ...mappedFilm,
-    nudity_timings: Array.isArray(rhFilm?.nudity_timings) ? rhFilm.nudity_timings : [],
     sequels_and_prequels: Array.isArray(rhFilm?.sequels_and_prequels)
       ? rhFilm.sequels_and_prequels
       : [],
@@ -505,6 +546,8 @@ const getPlayers = async (kpId, options = {}) => {
   return buildPlayersMap(candidates.map((c) => c.raw_data))
 }
 
+const getShikiInfo = async (...args) => rhserv.getShikiInfo(...args)
+
 const getShikiPlayers = async (...args) => rhserv.getShikiPlayers(...args)
 
 const getMovies = async ({
@@ -521,18 +564,22 @@ const getMovies = async ({
 
   const { data } = await apiCall((api) => api.get(endpoint, { params }))
   let rows = Array.isArray(data?.data) ? data.data : []
+  const normalizedTypeFilter = String(typeFilter || 'all').toLowerCase()
 
-  if (typeFilter === 'movie') {
-    rows = rows.filter((f) =>
-      String(f?.type || '')
-        .toLowerCase()
-        .includes('movie')
-    )
-  } else if (typeFilter === 'series') {
-    rows = rows.filter((f) => {
-      const t = String(f?.type || '').toLowerCase()
-      return t.includes('series') || t.includes('show')
-    })
+  const matchesMovieType = (value) => {
+    const type = String(value || '').toLowerCase()
+    return type.includes('film') || type.includes('movie')
+  }
+
+  const matchesSeriesType = (value) => {
+    const type = String(value || '').toLowerCase()
+    return type.includes('serial') || type.includes('series') || type.includes('show')
+  }
+
+  if (normalizedTypeFilter === 'movie') {
+    rows = rows.filter((f) => matchesMovieType(f?.type))
+  } else if (normalizedTypeFilter === 'series') {
+    rows = rows.filter((f) => matchesSeriesType(f?.type))
   }
 
   return rows.map(buildLegacyMovie)
@@ -568,6 +615,7 @@ const getRandomMovie = async () => {
   return { kp_id: pick?.kinopoisk_id || null, source: 'kinobd', film: buildLegacyMovie(pick) }
 }
 
+const getDons = async (...args) => rhserv.getDons(...args)
 const getKpIDfromSHIKI = async (...args) => rhserv.getKpIDfromSHIKI(...args)
 const getNudityInfoFromIMDB = async (...args) => rhserv.getNudityInfoFromIMDB(...args)
 const getRating = async (...args) => rhserv.getRating(...args)
@@ -586,6 +634,7 @@ const getAllTimingSubmissions = async (...args) => rhserv.getAllTimingSubmission
 const approveTiming = async (...args) => rhserv.approveTiming(...args)
 const rejectTiming = async (...args) => rhserv.rejectTiming(...args)
 const markAsCleanText = async (...args) => rhserv.markAsCleanText(...args)
+const getTwitchStream = async (...args) => rhserv.getTwitchStream(...args)
 const voteOnTiming = async (...args) => rhserv.voteOnTiming(...args)
 const getTimingVote = async (...args) => rhserv.getTimingVote(...args)
 const getMovieNote = async (...args) => rhserv.getMovieNote(...args)
@@ -597,11 +646,13 @@ export {
   getPlayerDataByInid,
   apiSearch,
   getMovieSeoByKpId,
+  getShikiInfo,
   getKpInfo,
   getPlayers,
   getShikiPlayers,
   getMovies,
   getDiscussedMovies,
+  getDons,
   getKpIDfromIMDB,
   getKpIDfromSHIKI,
   getRating,
@@ -622,6 +673,7 @@ export {
   approveTiming,
   rejectTiming,
   markAsCleanText,
+  getTwitchStream,
   voteOnTiming,
   getTimingVote,
   getMovieNote,

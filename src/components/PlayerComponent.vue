@@ -2,19 +2,12 @@
   <ErrorMessage v-if="errorMessage" :message="errorMessage" :code="errorCode" />
 
   <template v-else>
-    <!-- Кнопка для открытия модалки выбора плеера -->
-    <div class="players-list">
-      <span>Плеер:</span>
-      <button class="player-btn" @click="openPlayerModal">
-        {{
-          selectedPlayerInternal
-            ? getProviderDisplayName(selectedPlayerInternal).toUpperCase()
-            : 'Загрузка плееров...'
-        }}
-      </button>
-      <button v-if="isKinoBdProvider" class="source-btn" @click="openSourceModal">Источник</button>
-    </div>
-
+    <PlayerSelectorBar
+      :selected-label="selectedPlayerLabel"
+      :show-source-button="showSourceButton"
+      @open-player-modal="openPlayerModal"
+      @open-source-modal="openSourceModal"
+    />
     <!-- Модальное окно выбора плеера -->
     <PlayerModal
       v-if="showPlayerModal"
@@ -24,29 +17,14 @@
       @select="handlePlayerSelect"
     />
 
-    <div v-if="showSourceModal" class="source-modal-backdrop" @click.self="closeSourceModal">
-      <div class="source-modal">
-        <div class="source-modal-header">
-          <h3>Выбор источника KinoBD</h3>
-          <button class="source-close-btn" @click="closeSourceModal">×</button>
-        </div>
-        <div v-if="sourceLoading" class="source-loading">Загрузка источников...</div>
-        <div v-else-if="sourceError" class="source-error">{{ sourceError }}</div>
-        <div v-else-if="sourceCandidates.length === 0" class="source-empty">
-          Источники не найдены
-        </div>
-        <ul v-else class="source-candidate-list">
-          <li v-for="candidate in sourceCandidates" :key="candidate.id">
-            <button class="source-candidate-btn" @click="applySourceCandidate(candidate)">
-              <span class="source-title">{{ candidate.title || `ID ${candidate.id}` }}</span>
-              <span class="source-meta"
-                >inid: {{ candidate.id }} · kp: {{ candidate.kp_id || '-' }}</span
-              >
-            </button>
-          </li>
-        </ul>
-      </div>
-    </div>
+    <PlayerSourceModal
+      v-if="showSourceModal"
+      :candidates="sourceCandidates"
+      :loading="sourceLoading"
+      :error="sourceError"
+      @close="closeSourceModal"
+      @select="applySourceCandidate"
+    />
 
     <!-- Единый контейнер плеера -->
     <div
@@ -70,12 +48,19 @@
             dimmed: dimmingEnabled
           }"
           @load="onIframeLoad"
+          @error="onIframeError"
         ></iframe>
         <SpinnerLoading
-          v-if="iframeLoading"
+          v-if="iframeLoading && !playersEmptyMessage"
+          class="player-loading-spinner"
           :text="`Загружается плеер: ${selectedPlayerInternal ? getProviderDisplayName(selectedPlayerInternal) : 'Загружается список плееров'}\nЕсли плеер не грузится, то смените плеер выше или включите VPN`"
-          style="white-space: pre-line"
         />
+        <div v-else-if="playersEmptyMessage" class="player-empty-state">
+          <p>{{ playersEmptyMessage }}</p>
+          <button v-if="showSourceButton" type="button" @click="openSourceModal">
+            Выбрать источник
+          </button>
+        </div>
       </div>
 
       <!-- Кнопка закрытия в театральном режиме -->
@@ -364,24 +349,6 @@
             </div>
           </div>
 
-          <div
-            v-if="selectedPlayerInternal?.iframe"
-            class="tooltip-container"
-            data-tooltip-container="mpv"
-          >
-            <button
-              class="mpv-btn"
-              @mouseenter="showTooltip('mpv')"
-              @mouseleave="activeTooltip = null"
-              @click="copyMpvLink"
-            >
-              <span class="material-icons">terminal</span>
-            </button>
-            <div v-show="activeTooltip === 'mpv'" class="custom-tooltip" data-tooltip="mpv">
-              Скопировать для mpv
-            </div>
-          </div>
-
           <!-- Кнопка для копирования ссылки на фильм (только в Electron) -->
           <div v-if="isElectron" class="tooltip-container" data-tooltip-container="copy_link">
             <button
@@ -511,28 +478,64 @@
 </template>
 
 <script setup>
-import {
-  getPlayers,
-  getShikiPlayers,
-  searchKinoBDPlayerCandidates,
-  getKinoBDPlayerDataByInid
-} from '@/api/movies'
-import { handleApiError } from '@/constants'
-import { addToList, delFromList } from '@/api/user'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import SpinnerLoading from '@/components/SpinnerLoading.vue'
 import Notification from '@/components/notification/ToastMessage.vue'
 import SliderRound from '@/components/slider/SliderRound.vue'
-import { showMessageToast } from '@/helpers/ui'
+import { usePlayerElectronControls } from '@/composables/usePlayerElectronControls'
+import { usePlayerLayout } from '@/composables/usePlayerLayout'
+import { usePlayerLists } from '@/composables/usePlayerLists'
+import { usePlayerSharing } from '@/composables/usePlayerSharing'
+import { usePlayerSources } from '@/composables/usePlayerSources'
 import { useMainStore } from '@/store/main'
 import { usePlayerStore } from '@/store/player'
 import { useAuthStore } from '@/store/auth'
 import { USER_LIST_TYPES_ENUM } from '@/constants'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch
+} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PlayerModal from '@/components/PlayerModal.vue'
+import PlayerSelectorBar from '@/components/player/PlayerSelectorBar.vue'
 import { parseTimingTextToSeconds, formatSecondsToTime } from '@/utils/dateUtils'
 import { OBSWebSocket } from '@/utils/obsWebSocket'
+import { debugLog } from '@/utils/logger'
+import { getProviderDisplayName } from '@/utils/playerUtils'
+import { trackAnalyticsEvent } from '@/utils/analytics'
+import {
+  applyOverlayButtonHoverStyle,
+  applyOverlayProgressBackgroundStyle,
+  applyOverlayTimingsBackgroundStyle,
+  applyOverlayTitleBackgroundStyle,
+  applyOverlayVisibilityStyle,
+  applySettingsButtonHoverStyle,
+  getControlsContainerStyle,
+  getDurationProgressMarkup,
+  getMainInfoStyle,
+  getMovieTitleStyle,
+  getMutedTextColor,
+  getObsStatusMarkup,
+  getOverlayBaseStyle,
+  getOverlayButtonStyle,
+  getOverlayPositionStyle,
+  getOverlaySettingsMarkup,
+  getSettingsModalContentStyle,
+  getSettingsModalStyle,
+  getTimingTextStyle,
+  getTimingsContentStyle,
+  getTimingsPanelStyle,
+  getVideoProgressStyle
+} from '@/utils/playerOverlayStyles'
+
+const PlayerSourceModal = defineAsyncComponent(
+  () => import('@/components/player/PlayerSourceModal.vue')
+)
 
 const mainStore = useMainStore()
 const playerStore = usePlayerStore()
@@ -550,50 +553,99 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:selectedPlayer', 'update:movieInfo'])
 
-const playersInternal = ref([])
-const selectedPlayerInternal = ref(null)
 const iframeLoading = ref(true)
-const theaterMode = ref(false)
-const closeButtonVisible = ref(false)
 const playerIframe = ref(null)
 const containerRef = ref(null)
-const showPlayerModal = ref(false)
-const showSourceModal = ref(false)
-const sourceCandidates = ref([])
-const sourceLoading = ref(false)
-const sourceError = ref('')
+const PLAYER_IFRAME_LOAD_TIMEOUT_MS = 20000
+let iframeLoadStartedAt = 0
+let iframeLoadTimeout = null
 
-// Переменные для ошибок
-const errorMessage = ref('')
-const errorCode = ref(null)
-
-const maxPlayerHeightValue = ref(window.innerHeight * 0.9)
-const maxPlayerHeight = computed(() => `${maxPlayerHeightValue.value}px`)
 const isMobile = computed(() => mainStore.isMobile)
 const isElectron = computed(() => !!window.electronAPI)
-const isKinoBdProvider = computed(() => mainStore.contentApiProvider === 'kinobd')
+
+const {
+  theaterMode,
+  closeButtonVisible,
+  aspectRatio,
+  isCentered,
+  dimmingEnabled,
+  containerStyle,
+  iframeWrapperStyle,
+  aspectRatios,
+  updateScaleFactor,
+  centerPlayer,
+  toggleTheaterMode,
+  toggleDimming,
+  setAspectRatio,
+  cycleAspectRatio,
+  cleanupPlayerLayout
+} = usePlayerLayout({
+  mainStore,
+  playerStore,
+  containerRef,
+  playerIframe
+})
+
+const {
+  playersInternal,
+  selectedPlayerInternal,
+  showPlayerModal,
+  showSourceModal,
+  sourceCandidates,
+  sourceLoading,
+  sourceError,
+  errorMessage,
+  errorCode,
+  playersEmptyMessage,
+  showSourceButton,
+  selectedPlayerLabel,
+  fetchPlayers,
+  openPlayerModal,
+  closePlayerModal,
+  openSourceModal,
+  closeSourceModal,
+  applySourceCandidate,
+  normalizePlayerKey
+} = usePlayerSources({
+  props,
+  getProviderDisplayName,
+  onSelectedPlayerChange: (player) => emit('update:selectedPlayer', player)
+})
 
 const activeTooltip = ref(null)
 const tooltipHovered = ref(false)
 let hideTimeout = null
 
 const notificationRef = ref(null)
+const { copyMovieLink } = usePlayerSharing({
+  notificationRef
+})
 
 const tooltipContainer = ref(null)
 const tooltip = ref(null)
-const mirrorCheckInterval = ref(null)
-const currentMirrorState = ref(false)
-const currentCompressorState = ref(false)
 const videoPositionInterval = ref(null)
 const overlayTimingsCheckInterval = ref(null)
 const lastOverlayTimingsCount = ref(0)
 
-const audioContext = ref(null)
-const compressorNode = ref(null)
-const mediaSource = ref(null)
-const gainNode = ref(null)
-const bypassGainNode = ref(null)
-const currentVideoElement = ref(null)
+const {
+  compressorEnabled,
+  mirrorEnabled,
+  enableBlur,
+  disableBlur,
+  toggleBlur,
+  toggleCompressor,
+  toggleMirror,
+  startMirrorMonitoring,
+  openAppLink,
+  togglePiP,
+  resetElectronPlaybackState,
+  cleanupElectronControls
+} = usePlayerElectronControls({
+  isElectron,
+  playerStore,
+  playerIframe,
+  kpId: kp_id
+})
 
 const videoOverlayEnabled2 = computed({
   get: () => playerStore.videoOverlayEnabled2,
@@ -676,16 +728,6 @@ const hideTooltip = () => {
   activeTooltip.value = null
 }
 
-const aspectRatio = computed({
-  get: () => playerStore.aspectRatio,
-  set: (value) => playerStore.updateAspectRatio(value)
-})
-
-const isCentered = computed({
-  get: () => playerStore.isCentered,
-  set: (value) => playerStore.updateCentering(value)
-})
-
 const isInAnyList = computed(() => {
   return (
     props.movieInfo?.lists?.isFavorite ||
@@ -695,566 +737,6 @@ const isInAnyList = computed(() => {
     props.movieInfo?.lists?.isAbandoned
   )
 })
-
-const preferredPlayer = computed(() => playerStore.preferredPlayer)
-const naturalHeight = ref(0)
-
-const normalizeKey = (key) => key.toUpperCase()
-
-const applyPlayersData = (players) => {
-  const dedupedPlayers = []
-  const seenProviders = new Set()
-
-  for (const [key, value] of Object.entries(players || {})) {
-    const player = {
-      key: key.toUpperCase(),
-      ...value
-    }
-    const providerName = normalizeKey(getProviderDisplayName(player))
-    if (providerName && seenProviders.has(providerName)) {
-      continue
-    }
-    if (providerName) {
-      seenProviders.add(providerName)
-    }
-    dedupedPlayers.push(player)
-  }
-
-  playersInternal.value = dedupedPlayers
-
-  if (playersInternal.value.length === 0) return
-
-  if (preferredPlayer.value) {
-    const normalizedPreferred = normalizeKey(preferredPlayer.value)
-    const preferred = playersInternal.value.find(
-      (player) =>
-        normalizeKey(player.key) === normalizedPreferred ||
-        normalizeKey(getProviderDisplayName(player)) === normalizedPreferred
-    )
-    selectedPlayerInternal.value = preferred || playersInternal.value[0]
-  } else {
-    selectedPlayerInternal.value = playersInternal.value[0]
-  }
-  emit('update:selectedPlayer', selectedPlayerInternal.value)
-}
-
-const updateScaleFactor = () => {
-  if (theaterMode.value || !containerRef.value) return
-  const [w, h] = aspectRatio.value.split(':').map(Number)
-  maxPlayerHeightValue.value = window.innerHeight * 0.9
-  naturalHeight.value = Math.min(
-    containerRef.value.clientWidth * (h / w),
-    maxPlayerHeightValue.value
-  )
-}
-
-const containerStyle = computed(() => {
-  if (theaterMode.value) return {}
-  const [w, h] = aspectRatio.value.split(':').map(Number)
-  const maxWidth = maxPlayerHeightValue.value * (w / h)
-  return {
-    width: '100%',
-    maxWidth: `${maxWidth}px`,
-    maxHeight: maxPlayerHeight.value,
-    margin: '0 auto',
-    overflow: 'hidden'
-  }
-})
-
-const iframeWrapperStyle = computed(() => {
-  const [w, h] = aspectRatio.value.split(':').map(Number)
-  return {
-    position: 'relative',
-    width: '100%',
-    paddingTop: `${(h / w) * 100}%`
-  }
-})
-
-const centerPlayer = () => {
-  if (containerRef.value) {
-    setTimeout(() => {
-      nextTick(() => {
-        containerRef.value.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-          inline: 'center'
-        })
-      })
-    }, 500)
-  }
-}
-
-const fetchPlayers = async () => {
-  try {
-    errorMessage.value = ''
-    errorCode.value = null
-
-    let players
-    if (props.kpId.startsWith('shiki')) {
-      const cleanShikiId = props.kpId.replace('shiki', '')
-      players = await getShikiPlayers(cleanShikiId)
-    } else {
-      const savedInid = playerStore.kinobdSourceByKpId?.[props.kpId] || null
-      players = await getPlayers(props.kpId, {
-        mode: 'kp_id',
-        usePlayerData: true,
-        forceInid: isKinoBdProvider.value ? savedInid : null
-      })
-    }
-    applyPlayersData(players)
-  } catch (error) {
-    const { message, code } = handleApiError(error)
-    errorMessage.value = message
-    errorCode.value = code
-    console.error('Ошибка при загрузке плееров:', error)
-  }
-}
-
-const openPlayerModal = () => {
-  showPlayerModal.value = true
-}
-
-const closePlayerModal = () => {
-  showPlayerModal.value = false
-}
-
-const openSourceModal = async () => {
-  showSourceModal.value = true
-  sourceError.value = ''
-  sourceLoading.value = true
-
-  try {
-    const query =
-      props.movieInfo?.title ||
-      props.movieInfo?.name_ru ||
-      props.movieInfo?.name_en ||
-      props.movieInfo?.name_original ||
-      props.kpId
-
-    let candidates = []
-    if (query) {
-      candidates = await searchKinoBDPlayerCandidates(query, { type: 'title', page: 1 })
-    }
-    if (!candidates.length && props.kpId) {
-      candidates = await searchKinoBDPlayerCandidates(props.kpId, { type: 'kp_id', page: 1 })
-    }
-    sourceCandidates.value = candidates
-  } catch (error) {
-    sourceError.value = 'Не удалось загрузить список источников'
-    console.error('Ошибка при загрузке источников KinoBD:', error)
-  } finally {
-    sourceLoading.value = false
-  }
-}
-
-const closeSourceModal = () => {
-  showSourceModal.value = false
-}
-
-const applySourceCandidate = async (candidate) => {
-  if (!candidate?.id) return
-
-  sourceLoading.value = true
-  sourceError.value = ''
-
-  try {
-    const players = await getKinoBDPlayerDataByInid(candidate.id, {
-      playerUrl: candidate.iframe
-    })
-    applyPlayersData(players)
-    playerStore.setKinoBdSource(props.kpId, candidate.id)
-    closeSourceModal()
-  } catch (error) {
-    sourceError.value = 'Не удалось применить выбранный источник'
-    console.error('Ошибка применения источника KinoBD:', error)
-  } finally {
-    sourceLoading.value = false
-  }
-}
-
-const initializeAudioContext = () => {
-  try {
-    if (!audioContext.value) {
-      audioContext.value = new (window.AudioContext || window.webkitAudioContext)()
-    }
-
-    if (!compressorNode.value) {
-      compressorNode.value = audioContext.value.createDynamicsCompressor()
-      compressorNode.value.threshold.value = -50
-      compressorNode.value.knee.value = 40
-      compressorNode.value.ratio.value = 12
-      compressorNode.value.attack.value = 0
-      compressorNode.value.release.value = 0.25
-
-      gainNode.value = audioContext.value.createGain()
-      bypassGainNode.value = audioContext.value.createGain()
-
-      gainNode.value.gain.value = 0
-      bypassGainNode.value.gain.value = 1
-
-      compressorNode.value.connect(gainNode.value)
-      gainNode.value.connect(audioContext.value.destination)
-
-      bypassGainNode.value.connect(audioContext.value.destination)
-    }
-
-    return true
-  } catch (e) {
-    console.log('Error initializing audio context:', e)
-    return false
-  }
-}
-
-const setupVideoAudio = async (video) => {
-  try {
-    if (!audioContext.value || currentVideoElement.value === video) return true
-
-    const iframe = playerIframe.value
-    const iframeSrc = iframe?.src || ''
-
-    if (
-      iframeSrc.includes('videoframe') ||
-      iframeSrc.includes('kinoserial.net') ||
-      iframeSrc.includes('allarknow')
-    ) {
-      console.log('Player detected as unsupported for compressor:', iframeSrc)
-      currentVideoElement.value = video
-      mediaSource.value = null
-      currentCompressorState.value = false
-
-      if (isElectron.value) {
-        window.electronAPI.showToast('Компрессор не поддерживается этим плеером')
-      }
-      return false
-    }
-
-    if (mediaSource.value) {
-      try {
-        mediaSource.value.disconnect()
-      } catch {
-        // ignore
-      }
-    }
-
-    const attemptConnection = async (delay = 0) => {
-      if (delay > 0) {
-        await new Promise((resolve) => setTimeout(resolve, delay))
-      }
-
-      try {
-        mediaSource.value = audioContext.value.createMediaElementSource(video)
-        currentVideoElement.value = video
-
-        mediaSource.value.connect(compressorNode.value)
-        mediaSource.value.connect(bypassGainNode.value)
-
-        console.log(`Video audio setup completed (attempt with ${delay}ms delay)`)
-        return true
-      } catch (e) {
-        if (e.name === 'InvalidStateError' && e.message.includes('already connected')) {
-          console.log(`MediaElementSource already connected (${delay}ms delay attempt)`)
-          return false
-        } else {
-          throw e
-        }
-      }
-    }
-
-    if (await attemptConnection(0)) return true
-
-    if (await attemptConnection(100)) return true
-
-    if (await attemptConnection(300)) return true
-
-    if (await attemptConnection(800)) return true
-
-    console.log(
-      'Video element has internal audio processing, compressor not available for this player'
-    )
-    currentVideoElement.value = video
-    mediaSource.value = null
-    currentCompressorState.value = false
-
-    if (isElectron.value) {
-      window.electronAPI.showToast('Компрессор не поддерживается этим плеером')
-    }
-    return false
-  } catch (e) {
-    console.log('Error setting up video audio:', e)
-    return false
-  }
-}
-
-const applyCompressorEffect = async (enabled) => {
-  if (!playerIframe.value) return
-
-  try {
-    const iframe = playerIframe.value
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
-    if (!iframeDoc) return
-
-    const videos = iframeDoc.querySelectorAll('video')
-    if (videos.length === 0) return
-
-    const video = videos[0]
-
-    if (!initializeAudioContext()) return
-
-    const audioSetupSuccess = await setupVideoAudio(video)
-    if (!audioSetupSuccess || !mediaSource.value) {
-      console.log('Compressor not available for this player')
-      return
-    }
-
-    if (enabled && !currentCompressorState.value) {
-      gainNode.value.gain.setValueAtTime(1, audioContext.value.currentTime)
-      bypassGainNode.value.gain.setValueAtTime(0, audioContext.value.currentTime)
-      currentCompressorState.value = true
-
-      if (isElectron.value) {
-        window.electronAPI.showToast('Компрессор включён')
-      }
-      console.log('Compressor enabled')
-    } else if (!enabled && currentCompressorState.value) {
-      gainNode.value.gain.setValueAtTime(0, audioContext.value.currentTime)
-      bypassGainNode.value.gain.setValueAtTime(1, audioContext.value.currentTime)
-      currentCompressorState.value = false
-
-      if (isElectron.value) {
-        window.electronAPI.showToast('Компрессор отключён')
-      }
-      console.log('Compressor disabled')
-    }
-  } catch (e) {
-    console.log('Compressor error:', e)
-    if (isElectron.value) {
-      window.electronAPI.showToast('Ошибка при включении компрессора')
-    }
-  }
-}
-
-const enableBlur = () => {
-  if (!playerIframe.value) return
-
-  try {
-    const iframe = playerIframe.value
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
-    if (!iframeDoc) return
-
-    const videos = iframeDoc.querySelectorAll('video')
-    if (videos.length > 0) {
-      const video = videos[0]
-      if (!video.style.filter.includes('blur')) {
-        video.style.filter = 'blur(50px)'
-      }
-    } else {
-      if (!iframe.style.filter.includes('blur')) {
-        iframe.style.filter = 'blur(50px)'
-      }
-    }
-  } catch (error) {
-    console.log('Error enabling blur:', error)
-  }
-}
-
-const disableBlur = () => {
-  if (!playerIframe.value) return
-
-  try {
-    const iframe = playerIframe.value
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
-    if (!iframeDoc) return
-
-    const videos = iframeDoc.querySelectorAll('video')
-    if (videos.length > 0) {
-      const video = videos[0]
-      if (video.style.filter.includes('blur')) {
-        video.style.filter = ''
-      }
-    } else {
-      if (iframe.style.filter.includes('blur')) {
-        iframe.style.filter = ''
-      }
-    }
-  } catch (error) {
-    console.log('Error disabling blur:', error)
-  }
-}
-
-const toggleBlur = () => {
-  if (isElectron.value) {
-    try {
-      const iframe = playerIframe.value
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
-      if (!iframeDoc) return
-
-      const videos = iframeDoc.querySelectorAll('video')
-      if (videos.length > 0) {
-        const video = videos[0]
-        if (video.style.filter.includes('blur')) {
-          video.style.filter = ''
-        } else {
-          video.style.filter = 'blur(50px)'
-        }
-      } else {
-        if (iframe.style.filter.includes('blur')) {
-          iframe.style.filter = ''
-        } else {
-          iframe.style.filter = 'blur(50px)'
-        }
-      }
-    } catch (error) {
-      console.log('Error toggling blur:', error)
-    }
-  } else {
-    showMessageToast('Доступно только в приложении Akaiho Desktop')
-    window.open('https://t.me/Akaihoho', '_blank')
-  }
-}
-
-const toggleCompressor = () => {
-  if (isElectron.value) {
-    compressorEnabled.value = !compressorEnabled.value
-    applyCompressorEffect(compressorEnabled.value)
-  } else {
-    showMessageToast('Доступно только в приложении Akaiho Desktop')
-    window.open('https://t.me/Akaihoho', '_blank')
-  }
-}
-
-const toggleMirror = () => {
-  if (isElectron.value) {
-    mirrorEnabled.value = !mirrorEnabled.value
-    applyMirrorEffect(mirrorEnabled.value)
-  } else {
-    showMessageToast('Доступно только в приложении Akaiho Desktop')
-    window.open('https://t.me/Akaihoho', '_blank')
-  }
-}
-
-const toggleTheaterMode = () => {
-  theaterMode.value = !theaterMode.value
-  if (theaterMode.value) {
-    window.addEventListener('mousemove', showCloseButton)
-    document.addEventListener('keydown', onKeyDown)
-    document.body.classList.add('no-scroll')
-  } else {
-    window.removeEventListener('mousemove', showCloseButton)
-    document.removeEventListener('keydown', onKeyDown)
-    document.body.classList.remove('no-scroll')
-  }
-  closeButtonVisible.value = theaterMode.value
-  nextTick(() => {
-    centerPlayer()
-    if (playerIframe.value) {
-      playerIframe.value.focus()
-    }
-  })
-}
-
-const theaterModeCloseButtonTimeout = ref(null)
-const showCloseButton = () => {
-  theaterModeCloseButtonTimeout.value = setTimeout(() => {
-    clearTimeout(theaterModeCloseButtonTimeout.value)
-    closeButtonVisible.value = false
-  }, 4000)
-  closeButtonVisible.value = true
-}
-
-const dimmingEnabled = computed(() => mainStore.dimmingEnabled)
-const toggleDimming = () => {
-  if (!theaterMode.value) {
-    mainStore.toggleDimming()
-  }
-}
-
-const compressorEnabled = computed({
-  get: () => playerStore.compressorEnabled,
-  set: (value) => playerStore.updateCompressor(value)
-})
-
-const mirrorEnabled = computed({
-  get: () => playerStore.mirrorEnabled,
-  set: (value) => playerStore.updateMirror(value)
-})
-
-const applyMirrorEffect = (enabled) => {
-  if (!playerIframe.value) return
-
-  try {
-    const iframe = playerIframe.value
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
-    if (!iframeDoc) return
-
-    const videos = iframeDoc.querySelectorAll('video')
-    if (videos.length > 0) {
-      videos.forEach((video) => {
-        if (enabled) {
-          video.style.transform = 'scaleX(-1)'
-        } else {
-          video.style.transform = 'scaleX(1)'
-        }
-      })
-
-      currentMirrorState.value = enabled
-
-      if (isElectron.value) {
-        const message = enabled ? 'Зеркало включено' : 'Зеркало отключено'
-        window.electronAPI.showToast(message)
-      }
-    }
-  } catch {
-    // ignore
-  }
-}
-
-const startMirrorMonitoring = () => {
-  if (mirrorCheckInterval.value) {
-    clearInterval(mirrorCheckInterval.value)
-  }
-
-  mirrorCheckInterval.value = setInterval(() => {
-    if (!playerIframe.value) return
-
-    try {
-      const iframe = playerIframe.value
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
-      if (!iframeDoc) return
-
-      const videos = iframeDoc.querySelectorAll('video')
-      if (videos.length > 0) {
-        const video = videos[0]
-
-        const transform = video.style.transform
-        const isCurrentlyMirrored = transform === 'scaleX(-1)'
-
-        if (mirrorEnabled.value && !isCurrentlyMirrored) {
-          video.style.transform = 'scaleX(-1)'
-          currentMirrorState.value = true
-        } else if (!mirrorEnabled.value && isCurrentlyMirrored) {
-          video.style.transform = 'scaleX(1)'
-          currentMirrorState.value = false
-        }
-
-        if (currentVideoElement.value !== video) {
-          currentVideoElement.value = null
-          currentCompressorState.value = false
-
-          if (compressorEnabled.value) {
-            setTimeout(() => {
-              applyCompressorEffect(true)
-            }, 500)
-          }
-        } else if (compressorEnabled.value !== currentCompressorState.value && mediaSource.value) {
-          console.log('Compressor state mismatch, reapplying')
-          applyCompressorEffect(compressorEnabled.value)
-        }
-      }
-    } catch {
-      // ignore
-    }
-  }, 1000)
-}
 
 const startVideoPositionMonitoring = (isDebug = false) => {
   if (!isElectron.value) return
@@ -1314,7 +796,7 @@ const startVideoPositionMonitoring = (isDebug = false) => {
             try {
               createVideoOverlay(iframeDoc, video)
             } catch (error) {
-              console.log('Error creating overlay:', error)
+              debugLog('Error creating overlay:', error)
               overlayCreationInProgress.value = false
             }
           }
@@ -1387,7 +869,7 @@ const startVideoPositionMonitoring = (isDebug = false) => {
           const progress = duration > 0 ? (currentTime / duration) * 100 : 0
 
           if (isDebug) {
-            console.log(
+            debugLog(
               `Video position: ${currentTime.toFixed(2)}s / ${duration.toFixed(2)}s (${progress.toFixed(1)}%)`
             )
 
@@ -1397,7 +879,7 @@ const startVideoPositionMonitoring = (isDebug = false) => {
                   ([start, end]) => `${formatSecondsToTime(start)} - ${formatSecondsToTime(end)}`
                 )
                 .join(', ')
-              console.log(`Active blur intervals: [${activeIntervals}]`)
+              debugLog(`Active blur intervals: [${activeIntervals}]`)
             }
           }
 
@@ -1419,32 +901,76 @@ const startVideoPositionMonitoring = (isDebug = false) => {
             if (shouldBlur && !blurApplied) {
               obsWebSocket.value?.enableBlur(obsSettings.value.selectedFilterId)
               blurApplied = true
-              console.log('OBS Blur applied at', currentTime.toFixed(2), 'seconds')
+              debugLog('OBS Blur applied at', currentTime.toFixed(2), 'seconds')
             } else if (!shouldBlur && blurApplied) {
               obsWebSocket.value?.disableBlur(obsSettings.value.selectedFilterId)
               blurApplied = false
-              console.log('OBS Blur removed at', currentTime.toFixed(2), 'seconds')
+              debugLog('OBS Blur removed at', currentTime.toFixed(2), 'seconds')
             }
           } else if (shouldBlur && !blurApplied && isElectron.value) {
             // Internal blur logic
             enableBlur()
             blurApplied = true
-            console.log('Blur applied at', currentTime.toFixed(2), 'seconds')
+            debugLog('Blur applied at', currentTime.toFixed(2), 'seconds')
           } else if (!shouldBlur && blurApplied && !obsSettings.value.enabled) {
             disableBlur()
             blurApplied = false
-            console.log('Blur removed at', currentTime.toFixed(2), 'seconds')
+            debugLog('Blur removed at', currentTime.toFixed(2), 'seconds')
           }
         }
       }
     } catch (error) {
-      console.log('Error monitoring video position:', error)
+      debugLog('Error monitoring video position:', error)
     }
   }, 100)
 }
 
+const getPlayerAnalyticsPayload = () => ({
+  kp_id: kp_id.value,
+  player_key: selectedPlayerInternal.value?.key || '',
+  player_name: selectedPlayerInternal.value
+    ? getProviderDisplayName(selectedPlayerInternal.value)
+    : '',
+  source: mainStore.contentApiProvider
+})
+
+const clearIframeLoadTimeout = () => {
+  if (!iframeLoadTimeout) return
+  clearTimeout(iframeLoadTimeout)
+  iframeLoadTimeout = null
+}
+
+const scheduleIframeLoadTimeout = () => {
+  clearIframeLoadTimeout()
+
+  const iframe = selectedPlayerInternal.value?.iframe
+  if (!iframe) return
+
+  iframeLoadStartedAt = Date.now()
+  iframeLoadTimeout = setTimeout(() => {
+    if (!iframeLoading.value || selectedPlayerInternal.value?.iframe !== iframe) return
+
+    const payload = {
+      ...getPlayerAnalyticsPayload(),
+      status: 'timeout',
+      duration_ms: Date.now() - iframeLoadStartedAt,
+      timeout_ms: PLAYER_IFRAME_LOAD_TIMEOUT_MS
+    }
+
+    iframeLoadTimeout = null
+    trackAnalyticsEvent('player_iframe_load', payload)
+    trackAnalyticsEvent('player_iframe_timeout', payload)
+  }, PLAYER_IFRAME_LOAD_TIMEOUT_MS)
+}
+
 const onIframeLoad = () => {
   iframeLoading.value = false
+  clearIframeLoadTimeout()
+  trackAnalyticsEvent('player_iframe_load', {
+    ...getPlayerAnalyticsPayload(),
+    status: 'success',
+    duration_ms: iframeLoadStartedAt ? Date.now() - iframeLoadStartedAt : 0
+  })
   window.iframeLoadTime = Date.now()
   startMirrorMonitoring()
   startVideoPositionMonitoring()
@@ -1461,201 +987,25 @@ const onIframeLoad = () => {
           }
         }
       } catch (error) {
-        console.log('Error creating overlay on iframe load:', error)
+        debugLog('Error creating overlay on iframe load:', error)
         overlayCreationInProgress.value = false
       }
     }, 100)
   }
 }
 
-const onKeyDown = (event) => {
-  if (event.key === 'Escape' && theaterMode.value) {
-    toggleTheaterMode()
-  } else if (event.altKey && event.keyCode === 84) {
-    toggleTheaterMode()
-  }
-}
+const onIframeError = () => {
+  iframeLoading.value = false
+  clearIframeLoadTimeout()
 
-const setAspectRatio = (ratio) => {
-  aspectRatio.value = ratio
-  setTimeout(() => {
-    if (isCentered.value) centerPlayer()
-  }, 310)
-}
-
-const openAppLink = () => {
-  const appUrl = `akaiho://#${kp_id.value}`
-  try {
-    window.location.href = appUrl
-  } catch (e) {
-    console.error('Ошибка при открытии ссылки:', e)
-  }
-}
-
-const getBestMpvStreamUrl = (player) => {
-  if (!player) return ''
-
-  const directCandidates = [player.hls, player.stream, player.url, player.file, player.src].filter(
-    (v) => typeof v === 'string' && v
-  )
-  const direct = directCandidates.find(
-    (v) => /\.m3u8(\?|$)/i.test(v) || /manifest/i.test(v) || /\/hls\//i.test(v)
-  )
-  if (direct) return direct
-
-  const raw = player.raw_data
-  if (raw && typeof raw === 'object') {
-    const queue = [raw]
-    const visited = new Set()
-
-    while (queue.length) {
-      const cur = queue.shift()
-      if (!cur || typeof cur !== 'object') continue
-      if (visited.has(cur)) continue
-      visited.add(cur)
-
-      for (const value of Object.values(cur)) {
-        if (!value) continue
-        if (typeof value === 'string') {
-          if (
-            /^https?:\/\//i.test(value) &&
-            (/\.m3u8(\?|$)/i.test(value) || /manifest/i.test(value) || /\/hls\//i.test(value))
-          ) {
-            return value
-          }
-        } else if (typeof value === 'object') {
-          queue.push(value)
-        }
-      }
-    }
+  const payload = {
+    ...getPlayerAnalyticsPayload(),
+    status: 'error',
+    duration_ms: iframeLoadStartedAt ? Date.now() - iframeLoadStartedAt : 0
   }
 
-  const iframeUrl = String(player.iframe || '')
-  if (!iframeUrl) return ''
-
-  try {
-    const parsed = new URL(iframeUrl)
-    const queryValues = []
-    parsed.searchParams.forEach((value) => queryValues.push(value))
-    for (const value of queryValues) {
-      if (/^https?:\/\//i.test(value) && /\.m3u8(\?|$)/i.test(value)) {
-        return value
-      }
-    }
-  } catch {
-    return ''
-  }
-
-  return ''
-}
-
-const copyText = async (text) => {
-  if (!text) return false
-  try {
-    await navigator.clipboard.writeText(text)
-    return true
-  } catch {
-    return false
-  }
-}
-
-const copyMpvLink = async () => {
-  const current = selectedPlayerInternal.value
-  if (!current) return
-
-  const streamUrl = getBestMpvStreamUrl(current)
-  const targetUrl = streamUrl || String(current.iframe || '')
-
-  if (!targetUrl) {
-    notificationRef.value.showNotification('Не удалось получить ссылку для mpv')
-    return
-  }
-
-  const referrer = (() => {
-    try {
-      const base = new URL(String(current.iframe || ''))
-      return `${base.origin}/`
-    } catch {
-      return ''
-    }
-  })()
-
-  const mpvCommand = referrer ? `mpv --referrer="${referrer}" "${targetUrl}"` : `mpv "${targetUrl}"`
-
-  const ok = await copyText(mpvCommand)
-  if (ok) {
-    notificationRef.value.showNotification('Команда mpv скопирована')
-    return
-  }
-
-  const linkOk = await copyText(targetUrl)
-  if (linkOk) {
-    notificationRef.value.showNotification('Ссылка для mpv скопирована')
-    return
-  }
-
-  notificationRef.value.showNotification('Не удалось скопировать ссылку для mpv')
-}
-
-const copyMovieLink = () => {
-  const movieLink = window.location.href
-  navigator.clipboard.writeText(movieLink).then(() => {})
-  notificationRef.value.showNotification('Ссылка на фильм скопирована')
-}
-
-function cleanName(name) {
-  const cleanedName = String(name || '')
-    .replace(/KODIK>/, 'Kodik - ')
-    .replace(/VEOVEO>/, 'VeoVeo - ')
-    .replace(/KINOBOX>/, '')
-    .trim()
-  return cleanedName
-}
-
-function getProviderName(player) {
-  const directProvider = String(player?.provider || '').trim()
-  if (directProvider) return cleanName(directProvider)
-
-  const rawName = String(player?.name || player?.key || '')
-  if (!rawName.includes('>')) return ''
-
-  const segments = rawName
-    .split('>')
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-  if (!segments.length) return ''
-
-  const root = segments[0].toUpperCase()
-  if ((root === 'KINOBOX' || root === 'KINOBD' || root === 'RHSERV') && segments[1]) {
-    return cleanName(segments[1])
-  }
-
-  return cleanName(segments[0])
-}
-
-function getProviderDisplayName(player) {
-  const provider = getProviderName(player)
-  return provider || cleanName(player?.translate) || 'Плеер'
-}
-
-const cleanupAudioContext = () => {
-  try {
-    if (mediaSource.value) {
-      mediaSource.value.disconnect()
-      mediaSource.value = null
-    }
-    if (audioContext.value) {
-      audioContext.value.close()
-      audioContext.value = null
-    }
-    compressorNode.value = null
-    gainNode.value = null
-    bypassGainNode.value = null
-    currentVideoElement.value = null
-    currentCompressorState.value = false
-  } catch (e) {
-    console.log('Error cleaning up audio context:', e)
-  }
+  trackAnalyticsEvent('player_iframe_load', payload)
+  trackAnalyticsEvent('player_iframe_error', payload)
 }
 
 const handlePlayerSelect = (player) => {
@@ -1666,22 +1016,16 @@ const handlePlayerSelect = (player) => {
 
   selectedPlayerInternal.value = player
   iframeLoading.value = true
-  currentMirrorState.value = false
-  currentCompressorState.value = false
-  currentVideoElement.value = null
+  resetElectronPlaybackState()
   if (currentOverlayElement.value) {
     removeVideoOverlay()
-  }
-  if (mirrorCheckInterval.value) {
-    clearInterval(mirrorCheckInterval.value)
-    mirrorCheckInterval.value = null
   }
   if (videoPositionInterval.value) {
     clearInterval(videoPositionInterval.value)
     videoPositionInterval.value = null
   }
   if (!player.key.toLowerCase().includes('torrents')) {
-    playerStore.updatePreferredPlayer(normalizeKey(player.key))
+    playerStore.updatePreferredPlayer(normalizePlayerKey(player.key))
   }
   emit('update:selectedPlayer', player)
 }
@@ -1689,24 +1033,21 @@ const handlePlayerSelect = (player) => {
 watch(selectedPlayerInternal, (newVal) => {
   if (newVal) {
     iframeLoading.value = true
-    currentMirrorState.value = false
-    currentCompressorState.value = false
-    currentVideoElement.value = null
+    scheduleIframeLoadTimeout()
+    resetElectronPlaybackState()
     if (currentOverlayElement.value) {
       removeVideoOverlay()
-    }
-    if (mirrorCheckInterval.value) {
-      clearInterval(mirrorCheckInterval.value)
-      mirrorCheckInterval.value = null
     }
     if (videoPositionInterval.value) {
       clearInterval(videoPositionInterval.value)
       videoPositionInterval.value = null
     }
     if (!newVal.key.toLowerCase().includes('torrents')) {
-      playerStore.updatePreferredPlayer(normalizeKey(newVal.key))
+      playerStore.updatePreferredPlayer(normalizePlayerKey(newVal.key))
     }
     emit('update:selectedPlayer', newVal)
+  } else {
+    clearIframeLoadTimeout()
   }
 })
 
@@ -1715,25 +1056,43 @@ watch(
   async (newKpId) => {
     if (newKpId && newKpId !== kp_id.value) {
       kp_id.value = newKpId
-      currentMirrorState.value = false
-      currentCompressorState.value = false
-      currentVideoElement.value = null
+      iframeLoading.value = true
+      selectedPlayerInternal.value = null
+      resetElectronPlaybackState()
       if (currentOverlayElement.value) {
         removeVideoOverlay()
-      }
-      if (mirrorCheckInterval.value) {
-        clearInterval(mirrorCheckInterval.value)
-        mirrorCheckInterval.value = null
       }
       if (videoPositionInterval.value) {
         clearInterval(videoPositionInterval.value)
         videoPositionInterval.value = null
       }
       lastOverlayTimingsCount.value = 0
+      await fetchPlayers()
       if (isCentered.value) centerPlayer()
     }
   },
   { immediate: true }
+)
+
+watch(
+  () => mainStore.contentApiProvider,
+  async (newProvider, oldProvider) => {
+    if (!newProvider || newProvider === oldProvider) return
+
+    iframeLoading.value = true
+    selectedPlayerInternal.value = null
+    playerStore.clearPreferredPlayer()
+    resetElectronPlaybackState()
+    if (currentOverlayElement.value) {
+      removeVideoOverlay()
+    }
+    if (videoPositionInterval.value) {
+      clearInterval(videoPositionInterval.value)
+      videoPositionInterval.value = null
+    }
+    lastOverlayTimingsCount.value = 0
+    await fetchPlayers()
+  }
 )
 
 watch(videoOverlayEnabled2, (enabled) => {
@@ -1757,7 +1116,7 @@ watch(videoOverlayEnabled2, (enabled) => {
             }
           }
         } catch (error) {
-          console.log('Error creating overlay via watcher:', error)
+          debugLog('Error creating overlay via watcher:', error)
           overlayCreationInProgress.value = false
         }
       }
@@ -1820,7 +1179,7 @@ watch(
                 }
               }
             } catch (error) {
-              console.log('Error recreating overlay:', error)
+              debugLog('Error recreating overlay:', error)
             }
           }
         }, 100)
@@ -1832,104 +1191,24 @@ watch(
   { deep: true }
 )
 
-const aspectRatios = ['16:9', '12:5', '4:3']
-
-const cycleAspectRatio = () => {
-  const currentIndex = aspectRatios.indexOf(aspectRatio.value)
-  const nextIndex = (currentIndex + 1) % aspectRatios.length
-  setAspectRatio(aspectRatios[nextIndex])
-}
-
-const getListStatus = (listType) => {
-  const statusMap = {
-    [USER_LIST_TYPES_ENUM.FAVORITE]: props.movieInfo?.lists?.isFavorite || false,
-    [USER_LIST_TYPES_ENUM.HISTORY]: props.movieInfo?.lists?.isHistory || false,
-    [USER_LIST_TYPES_ENUM.LATER]: props.movieInfo?.lists?.isLater || false,
-    [USER_LIST_TYPES_ENUM.COMPLETED]: props.movieInfo?.lists?.isCompleted || false,
-    [USER_LIST_TYPES_ENUM.ABANDONED]: props.movieInfo?.lists?.isAbandoned || false,
-    [USER_LIST_TYPES_ENUM.WATCHING]: props.movieInfo?.lists?.isWatching || false
-  }
-
-  return statusMap[listType] ?? false
-}
-
-const toggleList = async (type) => {
-  if (!authStore.token) {
-    notificationRef.value.showNotification(
-      'Необходимо <a class="auth-link">авторизоваться</a>',
-      5000,
-      { onClick: openLogin }
-    )
-    return
-  }
-  let hasError = false
-  try {
-    const listNames = {
-      [USER_LIST_TYPES_ENUM.FAVORITE]: 'избранное',
-      [USER_LIST_TYPES_ENUM.HISTORY]: 'историю',
-      [USER_LIST_TYPES_ENUM.LATER]: 'список "Смотреть позже"',
-      [USER_LIST_TYPES_ENUM.COMPLETED]: 'список "Просмотрено"',
-      [USER_LIST_TYPES_ENUM.ABANDONED]: 'список "Брошено"',
-      [USER_LIST_TYPES_ENUM.WATCHING]: 'список "Смотрю"'
-    }
-
-    if (getListStatus(type)) {
-      await delFromList(kp_id.value, type)
-      notificationRef.value.showNotification(`Удалено из ${listNames[type]}`)
-    } else {
-      await addToList(kp_id.value, type)
-      notificationRef.value.showNotification(`Добавлено в ${listNames[type]}`)
-    }
-  } catch (error) {
-    const { message, code } = handleApiError(error)
-    notificationRef.value.showNotification(`${message} ${code}`)
-  }
-  if (!hasError) {
-    emit('update:movieInfo')
-  }
-}
-
 const openLogin = () => {
   router.push('/login')
 }
+
+const { toggleList } = usePlayerLists({
+  authStore,
+  emit,
+  kpId: kp_id,
+  movieInfo: computed(() => props.movieInfo),
+  notificationRef,
+  openLogin
+})
 
 const showFavoriteTooltip = computed(() => playerStore.showFavoriteTooltip)
 
 const openSettings = () => {
   router.push('/settings')
   hideTooltip()
-}
-
-const togglePiP = async () => {
-  if (!isElectron.value) {
-    showMessageToast('Доступно только в приложении Akaiho Desktop')
-    window.open('https://t.me/Akaihoho', '_blank')
-    return
-  }
-
-  if (!playerIframe.value) return
-
-  try {
-    const iframe = playerIframe.value
-    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document
-    if (!iframeDoc) return
-
-    const video = iframeDoc.querySelector('video')
-    if (!video) return
-
-    if (document.pictureInPictureElement) {
-      await document.exitPictureInPicture()
-    } else {
-      if (document.pictureInPictureEnabled) {
-        await video.requestPictureInPicture()
-      } else {
-        showMessageToast('Ваш браузер не поддерживает режим "Картинка в картинке"')
-      }
-    }
-  } catch (error) {
-    console.error('Error toggling PiP:', error)
-    showMessageToast('Не удалось включить режим "Картинка в картинке"')
-  }
 }
 
 const toggleVideoOverlay = () => {
@@ -1955,7 +1234,7 @@ const toggleVideoOverlay = () => {
             }
           }
         } catch (error) {
-          console.log('Error creating overlay:', error)
+          debugLog('Error creating overlay:', error)
           overlayCreationInProgress.value = false
         }
       }
@@ -2078,7 +1357,7 @@ const exitFullscreen = () => {
       }
     }
   } catch (error) {
-    console.log('Error exiting fullscreen:', error)
+    debugLog('Error exiting fullscreen:', error)
   }
 }
 
@@ -2095,72 +1374,12 @@ const showOverlaySettings = () => {
 
   const modal = iframeDoc.createElement('div')
   modal.id = 'overlay-settings-modal'
-  modal.style.cssText = `
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    background: rgba(0, 0, 0, 0.8) !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    z-index: 9999 !important;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-  `
+  modal.style.cssText = getSettingsModalStyle()
 
   const modalContent = iframeDoc.createElement('div')
-  modalContent.style.cssText = `
-    background: rgba(30, 30, 30, 0.95) !important;
-    backdrop-filter: blur(20px) !important;
-    border-radius: 16px !important;
-    padding: 32px !important;
-    max-width: 400px !important;
-    width: 90% !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5) !important;
-  `
+  modalContent.style.cssText = getSettingsModalContentStyle()
 
-  modalContent.innerHTML = `
-    <h3 style="color: #ff6b35; margin: 0 0 24px 0; font-size: 20px; font-weight: 600; text-align: center;">Настройки оверлея</h3>
-    
-    <div style="display: flex; flex-direction: column; gap: 16px;">
-      <label style="display: flex; align-items: center; gap: 12px; color: white; cursor: pointer; padding: 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.05);">
-        <input type="checkbox" id="showTitle" ${settings.showTitle ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #ff6b35;">
-        <span style="font-size: 16px;">Показывать название фильма</span>
-      </label>
-      
-      <label style="display: flex; align-items: center; gap: 12px; color: white; cursor: pointer; padding: 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.05);">
-        <input type="checkbox" id="showDuration" ${settings.showDuration2 ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #ff6b35;">
-        <span style="font-size: 16px;">Показывать продолжительность</span>
-      </label>
-      
-      <label style="display: flex; align-items: center; gap: 12px; color: white; cursor: pointer; padding: 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.05);">
-        <input type="checkbox" id="showBackground" ${settings.showBackground ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #ff6b35;">
-        <span style="font-size: 16px;">Показывать затемненный фон</span>
-      </label>
-      
-      <label style="display: flex; align-items: center; gap: 12px; color: white; cursor: pointer; padding: 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.05);">
-        <input type="checkbox" id="showTimingsOnMouseMove" ${settings.showTimingsOnMouseMove ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #ff6b35;">
-        <span style="font-size: 16px;">Показывать тайминги только при движении мышки</span>
-      </label>
-      
-      <label style="display: flex; align-items: center; gap: 12px; color: white; cursor: pointer; padding: 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.05);">
-        <input type="checkbox" id="highlightTimings" ${settings.highlightTimings ? 'checked' : ''} style="width: 18px; height: 18px; accent-color: #ff6b35;">
-        <span style="font-size: 16px;">Подсвечивать близкие и текущие тайминги</span>
-      </label>
-
-    </div>
-    
-    <div style="display: flex; gap: 12px; margin-top: 24px; justify-content: center;">
-      <button id="saveSettings" style="background: #ff6b35; color: white; border: none; border-radius: 8px; padding: 10px 20px; cursor: pointer; font-size: 16px; font-weight: 500; transition: all 0.3s ease;">
-        Сохранить
-      </button>
-      <button id="cancelSettings" style="background: rgba(255, 255, 255, 0.1); color: rgba(255, 255, 255, 0.8); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; padding: 10px 16px; cursor: pointer; font-size: 14px; transition: all 0.3s ease;">
-        Отмена
-      </button>
-    </div>
-  `
+  modalContent.innerHTML = getOverlaySettingsMarkup(settings)
   ;['click', 'mousedown', 'mouseup', 'mousemove', 'wheel', 'contextmenu'].forEach((eventType) => {
     modalContent.addEventListener(eventType, (e) => {
       e.stopPropagation()
@@ -2215,23 +1434,13 @@ const showOverlaySettings = () => {
       e.preventDefault()
       e.stopPropagation()
       e.stopImmediatePropagation()
-      if (button.id === 'saveSettings') {
-        button.style.background = '#e55a2b'
-        button.style.transform = 'translateY(-1px)'
-      } else {
-        button.style.background = 'rgba(255, 255, 255, 0.15)'
-      }
+      applySettingsButtonHoverStyle(button, true)
     })
     button.addEventListener('mouseleave', (e) => {
       e.preventDefault()
       e.stopPropagation()
       e.stopImmediatePropagation()
-      if (button.id === 'saveSettings') {
-        button.style.background = '#ff6b35'
-        button.style.transform = 'translateY(0)'
-      } else {
-        button.style.background = 'rgba(255, 255, 255, 0.1)'
-      }
+      applySettingsButtonHoverStyle(button, false)
     })
     ;['mousedown', 'mouseup', 'mousemove', 'wheel', 'contextmenu'].forEach((eventType) => {
       button.addEventListener(eventType, (e) => {
@@ -2289,198 +1498,54 @@ const createVideoOverlay = (iframeDoc, video) => {
   overlay.id = 'akaiho-video-overlay'
 
   let applyOverlayStyles = () => {
-    overlay.style.cssText = `
-      position: absolute !important;
-      top: 0 !important;
-      left: 0 !important;
-      width: 100% !important;
-      height: 100% !important;
-      pointer-events: none !important;
-      z-index: 999999999 !important;
-      display: flex !important;
-      flex-direction: column !important;
-      justify-content: space-between !important;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-      visibility: visible !important;
-      opacity: 1 !important;
-    `
+    overlay.style.cssText = getOverlayBaseStyle()
   }
 
   const mainInfo = iframeDoc.createElement('div')
-  mainInfo.style.cssText = `
-    color: white !important;
-    padding: 20px !important;
-    text-align: left !important;
-    pointer-events: none !important;
-  `
+  mainInfo.style.cssText = getMainInfoStyle()
 
   const movieTitle = iframeDoc.createElement('div')
-  const initialTitleBackground = overlaySettings.value.showBackground
-    ? 'rgba(0, 0, 0, 0.7)'
-    : 'transparent'
-  const initialTitleBackdropFilter = overlaySettings.value.showBackground ? 'blur(10px)' : 'none'
-  const initialTitleWidth = overlaySettings.value.showBackground ? 'fit-content' : 'auto'
   const initialFontSize = overlaySettings.value.fontSize || 18
 
-  movieTitle.style.cssText = `
-    font-size: ${initialFontSize + 2}px !important;
-    font-weight: 600 !important;
-    margin-bottom: 8px !important;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8) !important;
-    line-height: 1.2 !important;
-    padding: 8px 12px !important;
-    border-radius: 6px !important;
-    display: inline-block !important;
-    color: rgba(255, 255, 255, 0.6) !important;
-    background: ${initialTitleBackground} !important;
-    backdrop-filter: ${initialTitleBackdropFilter} !important;
-    width: ${initialTitleWidth} !important;
-  `
+  movieTitle.style.cssText = getMovieTitleStyle({
+    fontSize: initialFontSize,
+    showBackground: overlaySettings.value.showBackground
+  })
 
   const videoProgress = iframeDoc.createElement('div')
-  const initialProgressBackground = overlaySettings.value.showBackground
-    ? 'rgba(0, 0, 0, 0.7)'
-    : 'transparent'
-  const initialProgressBackdropFilter = overlaySettings.value.showBackground ? 'blur(10px)' : 'none'
-  const initialProgressBorderRadius = overlaySettings.value.showBackground ? '6px' : '0'
-  const initialProgressDisplay = overlaySettings.value.showBackground ? 'inline-flex' : 'flex'
-  const initialProgressWidth = overlaySettings.value.showBackground ? 'fit-content' : 'auto'
-
-  videoProgress.style.cssText = `
-    font-size: ${initialFontSize}px !important;
-    font-weight: 500 !important;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8) !important;
-    display: ${initialProgressDisplay} !important;
-    align-items: center !important;
-    gap: 8px !important;
-    flex-wrap: wrap !important;
-    color: rgba(255, 255, 255, 0.6) !important;
-    margin-left: 12px !important;
-    background: ${initialProgressBackground} !important;
-    backdrop-filter: ${initialProgressBackdropFilter} !important;
-    border-radius: ${initialProgressBorderRadius} !important;
-    width: ${initialProgressWidth} !important;
-  `
+  videoProgress.style.cssText = getVideoProgressStyle({
+    fontSize: initialFontSize,
+    showBackground: overlaySettings.value.showBackground
+  })
 
   const timingsPanel = iframeDoc.createElement('div')
-  const initialTimingsPanelBackground = overlaySettings.value.showBackground
-    ? 'rgba(0, 0, 0, 0.7)'
-    : 'transparent'
-  const initialTimingsPanelBackdropFilter = overlaySettings.value.showBackground
-    ? 'blur(10px)'
-    : 'none'
-
-  timingsPanel.style.cssText = `
-    position: absolute !important;
-    top: 20px !important;
-    right: 110px !important;
-    background: ${initialTimingsPanelBackground} !important;
-    backdrop-filter: ${initialTimingsPanelBackdropFilter} !important;
-    border-radius: 12px !important;
-    padding: 16px !important;
-    width: fit-content !important;
-    max-width: 800px !important;
-    pointer-events: none !important;
-    display: none !important;
-    transition: opacity 0.3s ease, visibility 0.3s ease !important;
-    opacity: 0 !important;
-    visibility: hidden !important;
-  `
+  timingsPanel.style.cssText = getTimingsPanelStyle({
+    showBackground: overlaySettings.value.showBackground
+  })
 
   const timingsContent = iframeDoc.createElement('div')
-  timingsContent.style.cssText = `
-    font-size: ${initialFontSize - 4}px !important;
-    color: rgba(255, 255, 255, 0.6) !important;
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
-    line-height: 1.4 !important;
-    word-wrap: break-word !important;
-  `
+  timingsContent.style.cssText = getTimingsContentStyle({ fontSize: initialFontSize })
 
   const controlsContainer = iframeDoc.createElement('div')
-  controlsContainer.style.cssText = `
-    position: absolute !important;
-    top: 20px !important;
-    right: 20px !important;
-    display: flex !important;
-    gap: 8px !important;
-    pointer-events: all !important;
-  `
+  controlsContainer.style.cssText = getControlsContainerStyle()
 
   const settingsBtn = iframeDoc.createElement('button')
-  settingsBtn.style.cssText = `
-    background: rgba(0, 0, 0, 0.8) !important;
-    backdrop-filter: blur(10px) !important;
-    color: white !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    border-radius: 50% !important;
-    width: 40px !important;
-    height: 40px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    cursor: pointer !important;
-    transition: all 0.3s ease !important;
-    font-size: 18px !important;
-  `
+  settingsBtn.style.cssText = getOverlayButtonStyle()
   settingsBtn.innerHTML = '⚙️'
   settingsBtn.title = 'Настройки оверлея'
 
   const fontDecreaseBtn = iframeDoc.createElement('button')
-  fontDecreaseBtn.style.cssText = `
-    background: rgba(0, 0, 0, 0.8) !important;
-    backdrop-filter: blur(10px) !important;
-    color: white !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    border-radius: 50% !important;
-    width: 40px !important;
-    height: 40px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    cursor: pointer !important;
-    transition: all 0.3s ease !important;
-    font-size: 20px !important;
-    font-weight: bold !important;
-  `
+  fontDecreaseBtn.style.cssText = getOverlayButtonStyle({ fontSize: 20, fontWeight: 'bold' })
   fontDecreaseBtn.innerHTML = 'A-'
   fontDecreaseBtn.title = 'Уменьшить шрифт'
 
   const fontIncreaseBtn = iframeDoc.createElement('button')
-  fontIncreaseBtn.style.cssText = `
-    background: rgba(0, 0, 0, 0.8) !important;
-    backdrop-filter: blur(10px) !important;
-    color: white !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    border-radius: 50% !important;
-    width: 40px !important;
-    height: 40px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    cursor: pointer !important;
-    transition: all 0.3s ease !important;
-    font-size: 20px !important;
-    font-weight: bold !important;
-  `
+  fontIncreaseBtn.style.cssText = getOverlayButtonStyle({ fontSize: 20, fontWeight: 'bold' })
   fontIncreaseBtn.innerHTML = 'A+'
   fontIncreaseBtn.title = 'Увеличить шрифт'
 
   const toggleBtn = iframeDoc.createElement('button')
-  toggleBtn.style.cssText = `
-    background: rgba(0, 0, 0, 0.8) !important;
-    backdrop-filter: blur(10px) !important;
-    color: white !important;
-    border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    border-radius: 50% !important;
-    width: 40px !important;
-    height: 40px !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    cursor: pointer !important;
-    transition: all 0.3s ease !important;
-    font-size: 18px !important;
-  `
+  toggleBtn.style.cssText = getOverlayButtonStyle()
   toggleBtn.innerHTML = '👁️'
   toggleBtn.title = 'Отключить оверлей'
 
@@ -2527,17 +1592,13 @@ const createVideoOverlay = (iframeDoc, video) => {
       e.preventDefault()
       e.stopPropagation()
       e.stopImmediatePropagation()
-      btn.style.background = '#ff6b35'
-      btn.style.borderColor = '#ff6b35'
-      btn.style.transform = 'scale(1.1)'
+      applyOverlayButtonHoverStyle(btn, true)
     })
     btn.addEventListener('mouseleave', (e) => {
       e.preventDefault()
       e.stopPropagation()
       e.stopImmediatePropagation()
-      btn.style.background = 'rgba(0, 0, 0, 0.8)'
-      btn.style.borderColor = 'rgba(255, 255, 255, 0.2)'
-      btn.style.transform = 'scale(1)'
+      applyOverlayButtonHoverStyle(btn, false)
     })
     ;['mousedown', 'mouseup', 'mousemove', 'wheel', 'contextmenu'].forEach((eventType) => {
       btn.addEventListener(eventType, (e) => {
@@ -2570,27 +1631,23 @@ const createVideoOverlay = (iframeDoc, video) => {
   overlay.appendChild(controlsContainer)
 
   controlsContainer.style.transition = 'opacity 0.3s ease, visibility 0.3s ease'
-  controlsContainer.style.opacity = '0'
-  controlsContainer.style.visibility = 'hidden'
+  applyOverlayVisibilityStyle(controlsContainer, false)
 
   mainInfo.style.transition = 'opacity 0.3s ease'
   let hideMainInfoTimeout = null
 
   const handleMouseMove = () => {
-    controlsContainer.style.opacity = '1'
-    controlsContainer.style.visibility = 'visible'
+    applyOverlayVisibilityStyle(controlsContainer, true)
     mainInfo.style.opacity = '0'
 
     if (overlaySettings.value.showTimingsOnMouseMove && activeTimingTexts.value.length > 0) {
-      timingsPanel.style.opacity = '1'
-      timingsPanel.style.visibility = 'visible'
+      applyOverlayVisibilityStyle(timingsPanel, true)
       clearTimeout(hideTimingsTimeout)
       hideTimingsTimeout = null
 
       if (!hasActiveTimings.value) {
         hideTimingsTimeout = setTimeout(() => {
-          timingsPanel.style.opacity = '0'
-          timingsPanel.style.visibility = 'hidden'
+          applyOverlayVisibilityStyle(timingsPanel, false)
           hideTimingsTimeout = null
         }, 3000)
       }
@@ -2600,8 +1657,7 @@ const createVideoOverlay = (iframeDoc, video) => {
     clearTimeout(hideMainInfoTimeout)
 
     overlayControlsTimeout.value = setTimeout(() => {
-      controlsContainer.style.opacity = '0'
-      controlsContainer.style.visibility = 'hidden'
+      applyOverlayVisibilityStyle(controlsContainer, false)
     }, 3000)
 
     hideMainInfoTimeout = setTimeout(() => {
@@ -2612,8 +1668,7 @@ const createVideoOverlay = (iframeDoc, video) => {
   iframeDoc.addEventListener('mousemove', handleMouseMove)
 
   overlay.addEventListener('mouseenter', () => {
-    controlsContainer.style.opacity = '1'
-    controlsContainer.style.visibility = 'visible'
+    applyOverlayVisibilityStyle(controlsContainer, true)
     mainInfo.style.opacity = '0'
     clearTimeout(hideMainInfoTimeout)
   })
@@ -2621,8 +1676,7 @@ const createVideoOverlay = (iframeDoc, video) => {
   overlay.addEventListener('mouseleave', () => {
     clearTimeout(overlayControlsTimeout.value)
     clearTimeout(hideMainInfoTimeout)
-    controlsContainer.style.opacity = '0'
-    controlsContainer.style.visibility = 'hidden'
+    applyOverlayVisibilityStyle(controlsContainer, false)
     mainInfo.style.opacity = '1'
   })
 
@@ -2682,22 +1736,7 @@ const createVideoOverlay = (iframeDoc, video) => {
       (video.offsetWidth === window.screen.width && video.offsetHeight === window.screen.height)
 
     if (isFullscreen) {
-      overlay.style.cssText = `
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        pointer-events: none !important;
-        z-index: 999999999 !important;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: space-between !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        box-sizing: border-box !important;
-      `
+      overlay.style.cssText = getOverlayPositionStyle({ fullscreen: true })
     } else {
       const videoStyle = iframeDoc.defaultView.getComputedStyle(video)
       const containerRect = container.getBoundingClientRect()
@@ -2710,22 +1749,13 @@ const createVideoOverlay = (iframeDoc, video) => {
       const relativeTop = videoRect.top - containerRect.top + container.scrollTop
       const relativeLeft = videoRect.left - containerRect.left + container.scrollLeft
 
-      overlay.style.cssText = `
-        position: absolute !important;
-        top: ${relativeTop}px !important;
-        left: ${relativeLeft}px !important;
-        width: ${videoWidth}px !important;
-        height: ${videoHeight}px !important;
-        pointer-events: none !important;
-        z-index: 999999999 !important;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: space-between !important;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-        visibility: visible !important;
-        opacity: 1 !important;
-        box-sizing: border-box !important;
-      `
+      overlay.style.cssText = getOverlayPositionStyle({
+        fullscreen: false,
+        top: relativeTop,
+        left: relativeLeft,
+        width: videoWidth,
+        height: videoHeight
+      })
     }
   }
 
@@ -2806,7 +1836,7 @@ const createVideoOverlay = (iframeDoc, video) => {
           }
         }
       } catch (e) {
-        console.log('Error re-adding overlay to DOM:', e)
+        debugLog('Error re-adding overlay to DOM:', e)
       }
     }
 
@@ -2950,17 +1980,7 @@ const updateVideoOverlay = () => {
     const year = props.movieInfo?.year ? ` (${props.movieInfo.year})` : ''
     movieTitle.textContent = title + year
 
-    if (overlaySettings.value.showBackground) {
-      movieTitle.style.background = 'rgba(0, 0, 0, 0.7) !important'
-      movieTitle.style.backdropFilter = 'blur(10px) !important'
-      movieTitle.style.width = 'fit-content !important'
-      movieTitle.style.display = 'inline-block !important'
-    } else {
-      movieTitle.style.background = 'transparent !important'
-      movieTitle.style.backdropFilter = 'none !important'
-      movieTitle.style.width = 'auto !important'
-      movieTitle.style.display = 'inline-block !important'
-    }
+    applyOverlayTitleBackgroundStyle(movieTitle, overlaySettings.value.showBackground)
   } else {
     movieTitle.style.display = 'none'
   }
@@ -2972,11 +1992,7 @@ const updateVideoOverlay = () => {
   if (overlaySettings.value.showDuration2) {
     const currentTimeFormatted = formatSecondsToTime(currentVideoTime.value)
     const totalTimeFormatted = formatSecondsToTime(totalVideoDuration.value)
-    progressHtml = `
-      <span style="font-family: 'Courier New', monospace; color: rgba(255, 255, 255, 0.6);">${currentTimeFormatted}</span>
-      <span style="opacity: 0.6;">/</span>
-      <span style="font-family: 'Courier New', monospace; color: rgba(255, 255, 255, 0.6);">${totalTimeFormatted}</span>
-    `
+    progressHtml = getDurationProgressMarkup({ currentTimeFormatted, totalTimeFormatted })
   }
 
   if (obsSettings.value.enabled && obsSettings.value.showObsInOverlay) {
@@ -3000,33 +2016,14 @@ const updateVideoOverlay = () => {
       }
     }
 
-    const obsStatusHtml = `
-      <span style="color: ${statusColor};">
-        OBS: ${statusText}
-      </span>
-    `
+    const obsStatusHtml = getObsStatusMarkup({ statusColor, statusText })
     progressHtml = progressHtml ? `${progressHtml} ${obsStatusHtml}` : obsStatusHtml
   }
 
   if (progressHtml) {
     videoProgress.style.display = 'flex'
     videoProgress.innerHTML = progressHtml
-
-    if (overlaySettings.value.showBackground) {
-      videoProgress.style.background = 'rgba(0, 0, 0, 0.7) !important'
-      videoProgress.style.backdropFilter = 'blur(10px) !important'
-      videoProgress.style.borderRadius = '6px !important'
-      videoProgress.style.padding = '8px 12px !important'
-      videoProgress.style.width = 'fit-content !important'
-      videoProgress.style.display = 'inline-flex !important'
-    } else {
-      videoProgress.style.background = 'transparent !important'
-      videoProgress.style.backdropFilter = 'none !important'
-      videoProgress.style.borderRadius = '0 !important'
-      videoProgress.style.padding = '0 !important'
-      videoProgress.style.width = 'auto !important'
-      videoProgress.style.display = 'flex !important'
-    }
+    applyOverlayProgressBackgroundStyle(videoProgress, overlaySettings.value.showBackground)
   } else {
     videoProgress.style.display = 'none'
   }
@@ -3038,14 +2035,14 @@ const updateVideoOverlay = () => {
 
     const header = iframeDoc.createElement('span')
     header.textContent = 'Тайминги: '
-    header.style.color = 'rgba(255, 255, 255, 0.6)'
+    header.style.color = getMutedTextColor()
     timingsContent.appendChild(header)
 
     activeTimingTexts.value.forEach((timing, timingIndex) => {
       if (timingIndex > 0) {
         const separator = iframeDoc.createElement('span')
         separator.textContent = ', '
-        separator.style.color = 'rgba(255, 255, 255, 0.6)'
+        separator.style.color = getMutedTextColor()
         timingsContent.appendChild(separator)
       }
 
@@ -3053,22 +2050,19 @@ const updateVideoOverlay = () => {
         if (intervalIndex > 0) {
           const intervalSeparator = iframeDoc.createElement('span')
           intervalSeparator.textContent = ', '
-          intervalSeparator.style.color = 'rgba(255, 255, 255, 0.6)'
+          intervalSeparator.style.color = getMutedTextColor()
           timingsContent.appendChild(intervalSeparator)
         }
 
         const intervalSpan = iframeDoc.createElement('span')
         intervalSpan.textContent = interval.text
 
-        if (interval.status === 'active' && overlaySettings.value.highlightTimings) {
-          intervalSpan.style.color = '#ff4444'
-          intervalSpan.style.fontWeight = 'bold'
-        } else if (interval.status === 'upcoming' && overlaySettings.value.highlightTimings) {
-          intervalSpan.style.color = '#ff6b35'
-          intervalSpan.style.fontWeight = '500'
-        } else {
-          intervalSpan.style.color = 'rgba(255, 255, 255, 0.6)'
-        }
+        const timingStyle = getTimingTextStyle({
+          status: interval.status,
+          highlight: overlaySettings.value.highlightTimings
+        })
+        intervalSpan.style.color = timingStyle.color
+        intervalSpan.style.fontWeight = timingStyle.fontWeight
 
         timingsContent.appendChild(intervalSpan)
       })
@@ -3077,21 +2071,10 @@ const updateVideoOverlay = () => {
     timingsPanel.style.display = 'block'
 
     if (!overlaySettings.value.showTimingsOnMouseMove || hasActiveTimings.value) {
-      timingsPanel.style.opacity = '1'
-      timingsPanel.style.visibility = 'visible'
+      applyOverlayVisibilityStyle(timingsPanel, true)
     }
 
-    if (overlaySettings.value.showBackground) {
-      timingsPanel.style.background = 'rgba(0, 0, 0, 0.7) !important'
-      timingsPanel.style.backdropFilter = 'blur(10px) !important'
-      timingsPanel.style.width = 'fit-content !important'
-      timingsPanel.style.minWidth = 'auto !important'
-    } else {
-      timingsPanel.style.background = 'transparent !important'
-      timingsPanel.style.backdropFilter = 'none !important'
-      timingsPanel.style.width = 'fit-content !important'
-      timingsPanel.style.minWidth = 'auto !important'
-    }
+    applyOverlayTimingsBackgroundStyle(timingsPanel, overlaySettings.value.showBackground)
   } else {
     timingsPanel.style.display = 'none'
   }
@@ -3101,8 +2084,7 @@ const updateVideoOverlay = () => {
     hasActiveTimings.value &&
     activeTimingTexts.value.length > 0
   ) {
-    timingsPanel.style.opacity = '1'
-    timingsPanel.style.visibility = 'visible'
+    applyOverlayVisibilityStyle(timingsPanel, true)
     clearTimeout(hideTimingsTimeout)
   } else if (
     overlaySettings.value.showTimingsOnMouseMove &&
@@ -3112,8 +2094,7 @@ const updateVideoOverlay = () => {
     !hideTimingsTimeout
   ) {
     hideTimingsTimeout = setTimeout(() => {
-      timingsPanel.style.opacity = '0'
-      timingsPanel.style.visibility = 'hidden'
+      applyOverlayVisibilityStyle(timingsPanel, false)
       hideTimingsTimeout = null
     }, 3000)
   }
@@ -3167,7 +2148,7 @@ const removeVideoOverlay = () => {
 
       currentOverlayElement.value.remove()
     } catch (e) {
-      console.log('Error removing overlay:', e)
+      debugLog('Error removing overlay:', e)
     }
     currentOverlayElement.value = null
   }
@@ -3201,16 +2182,16 @@ onMounted(() => {
   window.testOBSConnection = testOBSConnection
 
   window.debugOBS = () => {
-    console.log('=== OBS Debug Info ===')
-    console.log('OBS Settings:', obsSettings.value)
-    console.log('OBS Connected:', obsConnected.value)
-    console.log('OBS Filters Found:', obsFiltersFound.value)
-    console.log('OBS WebSocket instance:', obsWebSocket.value)
+    debugLog('=== OBS Debug Info ===')
+    debugLog('OBS Settings:', obsSettings.value)
+    debugLog('OBS Connected:', obsConnected.value)
+    debugLog('OBS Filters Found:', obsFiltersFound.value)
+    debugLog('OBS WebSocket instance:', obsWebSocket.value)
 
     if (obsWebSocket.value) {
-      console.log('WebSocket state:', obsWebSocket.value.ws?.readyState)
-      console.log('Is Connected:', obsWebSocket.value.isConnected)
-      console.log('Is Authenticated:', obsWebSocket.value.isAuthenticated)
+      debugLog('WebSocket state:', obsWebSocket.value.ws?.readyState)
+      debugLog('Is Connected:', obsWebSocket.value.isConnected)
+      debugLog('Is Authenticated:', obsWebSocket.value.isAuthenticated)
     }
   }
 
@@ -3255,7 +2236,7 @@ onMounted(() => {
             }
           }
         } catch (error) {
-          console.log('Error initializing overlay on mount:', error)
+          debugLog('Error initializing overlay on mount:', error)
           overlayCreationInProgress.value = false
         }
       }
@@ -3268,13 +2249,9 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateScaleFactor)
   window.removeEventListener('resize', updateTooltipPosition)
-  window.removeEventListener('mousemove', showCloseButton)
-  document.removeEventListener('keydown', onKeyDown)
-  document.body.classList.remove('no-scroll')
+  clearIframeLoadTimeout()
+  cleanupPlayerLayout()
 
-  if (mirrorCheckInterval.value) {
-    clearInterval(mirrorCheckInterval.value)
-  }
   if (videoPositionInterval.value) {
     clearInterval(videoPositionInterval.value)
   }
@@ -3282,12 +2259,10 @@ onBeforeUnmount(() => {
     clearInterval(overlayTimingsCheckInterval.value)
   }
   removeVideoOverlay()
-  cleanupAudioContext()
+  cleanupElectronControls()
 
   disconnectFromOBS()
 
-  delete window.toggleCompressor
-  delete window.toggleMirror
   delete window.connectToOBS
   delete window.testOBSBlur
   delete window.refreshOBSFilters
@@ -3308,656 +2283,4 @@ const testOBSConnection = async () => {
 }
 </script>
 
-<style scoped>
-.players-list {
-  width: 100%;
-  max-width: 800px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin: auto;
-  margin-bottom: 10px;
-}
-
-/* Стили для кнопки выбора плеера */
-.player-btn {
-  display: flex;
-  align-items: center;
-  justify-content: left;
-  background: #3a3a3a;
-  color: #fff;
-  border: 2px solid #505050;
-  border-radius: 5px;
-  padding: 10px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease-in-out;
-  width: 100%;
-  max-width: 800px;
-  text-align: left;
-  font-size: 16px;
-}
-
-.player-btn:hover {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
-  box-shadow: 0 0 10px var(--accent-semi-transparent);
-}
-
-.player-btn:active {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
-}
-
-.player-btn:focus {
-  outline: none;
-  box-shadow: 0 0 5px var(--accent-color);
-}
-
-.source-btn {
-  padding: 10px 14px;
-  border: 2px solid #505050;
-  border-radius: 5px;
-  background: #2f2f2f;
-  color: #fff;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-  transition: all 0.2s ease-in-out;
-}
-
-.source-btn:hover {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
-}
-
-.source-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
-}
-
-.source-modal {
-  width: min(720px, 100%);
-  max-height: 80vh;
-  overflow: auto;
-  background: #222;
-  border: 1px solid #444;
-  border-radius: 10px;
-  padding: 14px;
-}
-
-.source-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.source-modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-}
-
-.source-close-btn {
-  background: transparent;
-  border: none;
-  color: #fff;
-  font-size: 26px;
-  cursor: pointer;
-}
-
-.source-loading,
-.source-error,
-.source-empty {
-  padding: 10px 0;
-}
-
-.source-error {
-  color: #ff7a7a;
-}
-
-.source-candidate-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 8px;
-}
-
-.source-candidate-btn {
-  width: 100%;
-  text-align: left;
-  background: #333;
-  border: 1px solid #4f4f4f;
-  color: #fff;
-  border-radius: 8px;
-  padding: 10px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.source-candidate-btn:hover {
-  border-color: var(--accent-color);
-  background: #3a3a3a;
-}
-
-.source-title {
-  font-weight: 600;
-}
-
-.source-meta {
-  opacity: 0.8;
-  font-size: 12px;
-}
-
-.player-container {
-  width: 100%;
-  transition:
-    max-width 0.3s ease-in-out,
-    max-height 0.3s ease-in-out;
-  overflow: hidden;
-  padding-bottom: 10px;
-}
-
-.iframe-wrapper {
-  transition:
-    padding-top 0.3s ease-in-out,
-    transform 0.3s ease-in-out;
-  width: 100%;
-}
-
-.responsive-iframe {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  border: none;
-  z-index: 4;
-}
-
-.responsive-iframe.dimmed {
-  z-index: 7;
-}
-
-/* Стили для театрального режима */
-.player-container.theater-mode {
-  position: fixed;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  background: #000;
-  margin: 0;
-  border-radius: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 7;
-}
-
-.player-container.theater-mode .iframe-wrapper {
-  width: 100% !important;
-  height: 100% !important;
-  padding-top: 0 !important;
-  flex-grow: 1;
-}
-
-.close-theater-btn {
-  position: fixed;
-  top: 20px;
-  right: 80px;
-  background: rgba(255, 0, 0, 0.7);
-  color: white;
-  border: none;
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  cursor: pointer;
-  transition:
-    background 0.3s,
-    opacity 0.3s;
-  opacity: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  z-index: 8;
-}
-
-.close-theater-btn.visible {
-  opacity: 1;
-}
-
-/* Делаем кнопку видимой при наведении на зону */
-.close-theater-btn:hover,
-.close-theater-btn::before:hover {
-  background: var(--accent-color);
-  opacity: 1;
-}
-
-html.no-scroll {
-  overflow: hidden;
-}
-
-/* Блока управления */
-.controls {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  margin: 0 auto;
-  border-radius: 10px;
-  backdrop-filter: blur(10px);
-  position: relative;
-  z-index: 4;
-}
-
-.main-controls {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-}
-
-.controls button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #444;
-  color: #fff;
-  border: none;
-  padding: 12px;
-  font-size: 18px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition:
-    background-color 0.3s ease,
-    transform 0.2s ease,
-    box-shadow 0.3s ease;
-  z-index: 4;
-  width: 50px;
-  height: 50px;
-}
-
-.controls button:hover {
-  background-color: var(--accent-color);
-  transform: translateY(-3px);
-  box-shadow: 0 4px 10px var(--accent-semi-transparent);
-}
-
-.controls button:active {
-  transform: translateY(0);
-  box-shadow: none;
-}
-
-.controls button.active {
-  background-color: var(--accent-color);
-  box-shadow: 0 0 10px var(--accent-semi-transparent);
-}
-
-.material-icons {
-  font-size: 24px;
-}
-
-.tooltip-container {
-  position: relative;
-  display: inline-block;
-}
-
-.custom-tooltip {
-  position: absolute;
-  left: 50%;
-  background-color: rgba(30, 30, 30, 0.95);
-  color: #fff;
-  padding: 8px 16px;
-  border-radius: 12px;
-  font-size: 14px;
-  white-space: nowrap;
-  pointer-events: none;
-  text-align: center;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  opacity: 0;
-  visibility: hidden;
-  transform: translateX(-50%) translateY(8px);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  z-index: 1000;
-}
-
-.custom-tooltip::before {
-  content: '';
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%) rotate(45deg);
-  width: 10px;
-  height: 10px;
-  background-color: rgba(30, 30, 30, 0.95);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  z-index: -1;
-}
-
-.custom-tooltip[style*='bottom: 100%']::before {
-  bottom: -5px;
-  top: auto;
-}
-
-.custom-tooltip[style*='top: 100%']::before {
-  top: -5px;
-  bottom: auto;
-}
-
-.tooltip-container:hover .custom-tooltip {
-  opacity: 1;
-  visibility: visible;
-  transform: translateX(-50%) translateY(0);
-}
-
-.advanced-tooltip {
-  white-space: normal;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  top: calc(100% + 12px);
-  pointer-events: all;
-  text-align: center;
-  min-width: 240px;
-  background-color: rgba(30, 30, 30, 0.98);
-  border-radius: 16px;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
-  transform: translateX(-50%) translateY(8px);
-}
-
-.advanced-tooltip::before {
-  top: -6px;
-  width: 12px;
-  height: 12px;
-}
-
-.tooltip-title {
-  font-size: 15px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.95);
-  margin-top: 4px;
-}
-
-.aspect-ratio-dropdown {
-  min-width: fit-content;
-  width: max-content;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  background-color: rgba(30, 30, 30, 0.98);
-  border-radius: 16px;
-}
-
-.aspect-ratio-option {
-  padding: 12px 20px;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-align: center;
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.9);
-  white-space: nowrap;
-  width: 100%;
-}
-
-.aspect-ratio-option:hover {
-  background-color: var(--accent-color);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px var(--accent-semi-transparent);
-}
-
-.aspect-ratio-option.active {
-  background-color: var(--accent-color);
-  color: white;
-  font-weight: 500;
-  box-shadow: 0 2px 12px var(--accent-semi-transparent);
-}
-
-.fullscreen {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 10;
-}
-
-.theater-mode-lock {
-  pointer-events: none;
-}
-
-.theater-mode-unlock {
-  pointer-events: all;
-}
-
-.aspect-ratio-dropdown-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 12px;
-  min-width: 60px;
-}
-
-.current-ratio {
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.list-buttons-container {
-  position: relative;
-}
-
-.list-buttons-dropdown {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 16px;
-  min-width: 240px;
-  background-color: rgba(30, 30, 30, 0.98);
-  border-radius: 16px;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
-}
-
-.list-button-item {
-  width: 100%;
-}
-
-.list-button-item button {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
-  background-color: rgba(255, 255, 255, 0.08);
-  border: none;
-  border-radius: 10px;
-  color: rgba(255, 255, 255, 0.9);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  min-height: 48px;
-}
-
-.list-button-item button:hover {
-  background-color: var(--accent-color);
-  transform: translateX(4px);
-  box-shadow: 0 2px 8px var(--accent-semi-transparent);
-}
-
-.list-button-item button.active {
-  background-color: var(--accent-color);
-  color: white;
-  box-shadow: 0 2px 12px var(--accent-semi-transparent);
-}
-
-.button-label {
-  font-size: 15px;
-  font-weight: 500;
-  flex: 1;
-}
-
-.list-button-item .material-icons {
-  font-size: 20px;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.mobile-list-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  margin: 0 auto;
-  border-radius: 10px;
-  backdrop-filter: blur(10px);
-}
-
-@media (max-width: 768px) {
-  .mobile-list-buttons {
-    margin-top: 10px;
-  }
-}
-
-.shortcut-hint {
-  display: block;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
-  margin-top: 6px;
-  font-weight: 400;
-}
-
-.electron-only {
-  background-color: #333 !important;
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.electron-only:hover {
-  transform: none !important;
-  box-shadow: none !important;
-  background-color: #333 !important;
-}
-
-.custom-tooltip:has(+ .electron-only) {
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.favorite-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #444;
-  color: #fff;
-  border: none;
-  padding: 12px;
-  font-size: 18px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition:
-    background-color 0.3s ease,
-    transform 0.2s ease,
-    box-shadow 0.3s ease;
-  z-index: 4;
-  width: 50px;
-  height: 50px;
-  position: relative;
-}
-
-.favorite-btn:hover {
-  background-color: var(--accent-color);
-  transform: translateY(-3px);
-  box-shadow: 0 4px 10px var(--accent-semi-transparent);
-}
-
-.dropdown-arrow {
-  position: absolute;
-  right: 2px;
-  bottom: 2px;
-  font-size: 16px;
-  opacity: 0.7;
-  pointer-events: none;
-  transition: all 0.3s ease;
-}
-
-.dropdown-arrow.highlighted {
-  opacity: 1;
-  color: var(--accent-color);
-  text-shadow: 0 0 8px var(--accent-semi-transparent);
-}
-
-.desktop-list-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 5px;
-  margin: 0 auto;
-  border-radius: 10px;
-  backdrop-filter: blur(10px);
-}
-
-.desktop-list-buttons .tooltip-container {
-  margin: 0;
-}
-
-.desktop-list-buttons button {
-  margin: 0;
-}
-
-.tooltip-hint {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-  margin-top: 8px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.tooltip-hint .material-icons {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.settings-link {
-  color: var(--accent-color);
-  cursor: pointer;
-  text-decoration: underline;
-  transition: color 0.2s ease;
-}
-
-.settings-link:hover {
-  color: var(--accent-hover);
-}
-
-.auth-link {
-  color: var(--accent-color);
-  cursor: pointer;
-  text-decoration: underline;
-  transition: color 0.2s ease;
-}
-
-.auth-link:hover {
-  color: var(--accent-hover);
-}
-</style>
+<style scoped src="../assets/player-component.scss"></style>

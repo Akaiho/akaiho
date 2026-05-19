@@ -4,40 +4,24 @@ import { useThemeStore } from './store/theme'
 import { useAppSetup } from './composables/useAppSetup'
 import { routes } from './router/routes'
 import { installRouterGuards } from './router'
+import { buildMoviePath, getPrerenderMovieSeoEntries } from './utils/movieSeo'
 import App from './App.vue'
-
-const patchLegacyNextGuards = (router) => {
-  const originalBeforeEach = router.beforeEach.bind(router)
-
-  router.beforeEach = (guard) => {
-    if (typeof guard === 'function' && guard.length >= 3) {
-      return originalBeforeEach((to, from) => {
-        return new Promise((resolve, reject) => {
-          try {
-            guard(to, from, (value) => {
-              resolve(value === undefined ? true : value)
-            })
-          } catch (error) {
-            reject(error)
-          }
-        })
-      })
-    }
-
-    return originalBeforeEach(guard)
-  }
-}
 
 export const createApp = ViteSSG(
   App,
   { routes, base: import.meta.env.VITE_BASE_URL || '/' },
   ({ app, router, isClient }) => {
-    patchLegacyNextGuards(router)
     installRouterGuards(router, { isClient })
-    useAppSetup(app, { isClient })
+    useAppSetup(app, { router, isClient })
 
     if (isClient) {
-      registerSW({ immediate: true })
+      const registerServiceWorker = () => registerSW({ immediate: true })
+
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(registerServiceWorker, { timeout: 3000 })
+      } else {
+        window.addEventListener('load', registerServiceWorker, { once: true })
+      }
 
       window.addEventListener('vite:preloadError', (event) => {
         if (import.meta.env.DEV) {
@@ -53,5 +37,9 @@ export const createApp = ViteSSG(
 )
 
 export const includedRoutes = async (paths) => {
-  return paths.filter((path) => !path.includes(':'))
+  const staticPaths = paths.filter((path) => !path.includes(':'))
+  const movieSeoEntries = await getPrerenderMovieSeoEntries()
+  const moviePaths = movieSeoEntries.map((movie) => buildMoviePath(movie.kp_id, movie.slug))
+
+  return Array.from(new Set([...staticPaths, ...moviePaths]))
 }

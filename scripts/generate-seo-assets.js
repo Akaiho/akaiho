@@ -2,9 +2,11 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { normalizeBasePath } from '../src/utils/basePath.js'
+import { resolveCanonicalMovieIdentity } from '../src/utils/movieSlug.js'
 
 const SITE_ORIGIN = process.env.VITE_SITE_ORIGIN || 'https://akaiho.github.io'
 const SITE_BASE_PATH = process.env.VITE_BASE_URL || '/akaiho'
+const MOVIES_PATH = path.resolve(process.cwd(), 'src/data/movies.json')
 const ROBOTS_PATH = path.resolve(process.cwd(), 'public/robots.txt')
 const SITEMAP_PATH = path.resolve(process.cwd(), 'public/sitemap.xml')
 const STATIC_SITEMAP_PATHS = ['/', '/top', '/contact']
@@ -19,7 +21,19 @@ const escapeXml = (value) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;')
 
+export const readMoviesSeoCatalog = async (moviesPath = MOVIES_PATH) => {
+  try {
+    const raw = await fs.readFile(path.resolve(moviesPath), 'utf8')
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed : []
+  } catch (error) {
+    if (error?.code === 'ENOENT') return []
+    throw error
+  }
+}
+
 export const createSitemapUrls = ({
+  movies = [],
   siteOrigin = SITE_ORIGIN,
   basePath = BASE_PATH,
   staticPaths = STATIC_SITEMAP_PATHS,
@@ -29,6 +43,10 @@ export const createSitemapUrls = ({
     ...staticPaths.map((routePath) => ({
       loc: `${siteOrigin}${basePath}${routePath === '/' ? '/' : routePath}`,
       lastmod: currentDate
+    })),
+    ...movies.map((movie) => ({
+      loc: `${siteOrigin}${basePath}/movie/${movie.kp_id}/${resolveCanonicalMovieIdentity(movie).slug}`,
+      lastmod: String(movie.updatedAt || '').slice(0, 10) || currentDate
     }))
   ]
 }
@@ -41,17 +59,26 @@ export const createSitemapXml = (urls = []) =>
     )
     .join('\n')}\n</urlset>\n`
 
-export const createRobotsTxt = ({ siteOrigin = SITE_ORIGIN, basePath = BASE_PATH } = {}) =>
-  `User-agent: *\nAllow: /\n\nSitemap: ${siteOrigin}${basePath}/sitemap.xml\n`
+export const createRobotsTxt = ({ siteOrigin = SITE_ORIGIN, basePath = BASE_PATH } = {}) => {
+  const disallowPaths = Array.from(
+    new Set(['/auth-success', `${basePath}/auth-success`].filter(Boolean))
+  )
+
+  return `User-agent: *\nAllow: /\n${disallowPaths
+    .map((routePath) => `Disallow: ${routePath}`)
+    .join('\n')}\n\nSitemap: ${siteOrigin}${basePath}/sitemap.xml\n`
+}
 
 export async function generateSeoAssets({
+  moviesPath = MOVIES_PATH,
   robotsPath = ROBOTS_PATH,
   sitemapPath = SITEMAP_PATH,
   siteOrigin = SITE_ORIGIN,
   basePath = BASE_PATH
 } = {}) {
+  const movies = await readMoviesSeoCatalog(moviesPath)
   const lastmod = new Date().toISOString().slice(0, 10)
-  const urls = createSitemapUrls({ siteOrigin, basePath, currentDate: lastmod })
+  const urls = createSitemapUrls({ movies, siteOrigin, basePath, currentDate: lastmod })
   const sitemap = createSitemapXml(urls)
   const robots = createRobotsTxt({ siteOrigin, basePath })
 

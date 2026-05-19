@@ -12,6 +12,9 @@ const SITE_NAME = 'Akaiho'
 const SITE_ORIGIN = import.meta.env.VITE_SITE_ORIGIN || 'https://akaiho.github.io'
 const SITE_BASE_PATH = import.meta.env.VITE_BASE_URL || '/akaiho'
 const runtimeMoviesByKpId = new Map()
+let normalizedMovies = []
+let moviesByKpId = new Map()
+let staticMovieSeoEntriesPromise = null
 
 const BASE_PATH = normalizeBasePath(SITE_BASE_PATH)
 
@@ -40,6 +43,28 @@ const normalizeMovie = (movie) => {
   }
 }
 
+const loadStaticMovieSeoEntries = async () => {
+  if (!staticMovieSeoEntriesPromise) {
+    staticMovieSeoEntriesPromise = import('../api/movies.kinobd')
+      .then(async (module) => {
+        const kinobd = module || {}
+        if (typeof kinobd.getMovies !== 'function') return []
+
+        // Keep prerender data small and fresh: pull only the first top page.
+        const movies = await kinobd.getMovies({ page: 1 })
+        return Array.isArray(movies) ? movies : []
+      })
+      .catch(() => [])
+      .then((movies) => {
+        normalizedMovies = movies.map(normalizeMovie).filter(Boolean)
+        moviesByKpId = new Map(normalizedMovies.map((movie) => [movie.kp_id, movie]))
+        return normalizedMovies
+      })
+  }
+
+  return staticMovieSeoEntriesPromise
+}
+
 const mergeMovieSeoEntries = (existing = {}, incoming = {}) => {
   const kpId = String(incoming?.kp_id || existing?.kp_id || '').trim()
 
@@ -66,7 +91,7 @@ const mergeMovieSeoEntries = (existing = {}, incoming = {}) => {
 }
 
 export const getMovieSeoEntry = (kpId) =>
-  runtimeMoviesByKpId.get(String(kpId)) || null
+  runtimeMoviesByKpId.get(String(kpId)) || moviesByKpId.get(String(kpId)) || null
 
 export const registerMovieSeoEntry = (movieLike = {}) => {
   const normalizedMovie = normalizeMovie(movieLike)
@@ -149,3 +174,7 @@ export const buildMovieSeo = (movieLike = {}, kpIdOverride = null) => {
   }
 }
 
+export const getPrerenderMovieSeoEntries = async () => {
+  await loadStaticMovieSeoEntries()
+  return normalizedMovies.slice()
+}
