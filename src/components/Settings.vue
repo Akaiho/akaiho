@@ -6,146 +6,120 @@
         <h2>Фон</h2>
         <div class="radio-group">
           <label class="radio">
-            <input v-model="backgroundType" type="radio" value="dynamic" />
-            <span class="radio-label">Динамический фон</span>
+            <input v-model="backgroundType" type="radio" value="default" />
+            <span class="radio-label">По умолчанию</span>
           </label>
           <label class="radio">
             <input v-model="backgroundType" type="radio" value="stars" />
-            <span class="radio-label">Звездный фон</span>
-          </label>
-          <label class="radio">
-            <input v-model="backgroundType" type="radio" value="lava-lamp" />
-            <span class="radio-label">Лава-лампа</span>
+            <span class="radio-label">Звёзды</span>
           </label>
           <label class="radio">
             <input v-model="backgroundType" type="radio" value="disabled" />
-            <span class="radio-label">Отключить фон</span>
+            <span class="radio-label">Отключено</span>
           </label>
         </div>
-        <div class="settings-actions">
-          <button class="reset-button" @click="resetBackground">
-            <i class="fa-solid fa-arrow-rotate-left"></i> Сбросить фон
-          </button>
-        </div>
+        <button class="reset-button" @click="resetBackground">Сбросить фон</button>
       </div>
 
       <div class="settings-group">
         <h2>Тема</h2>
-        <ThemeSelector />
-      </div>
-
-      <div class="settings-group">
-        <h2>Плеер</h2>
-        <SliderRound v-model="isCentered">Автоцентрирование плеера</SliderRound>
-        <SliderRound v-model="isCardBorder">Окантовка вокруг карточек</SliderRound>
-        <SliderRound v-model="isCardHoverDisabled"
-          >Отключить подъем карточек при наведении</SliderRound
-        >
-        <SliderRound v-model="showFavoriteTooltip"
-          >Стиль отображения кнопок избранного:
-          {{ showFavoriteTooltip ? 'Тултип' : 'Все кнопки' }}</SliderRound
-        >
-      </div>
-
-      <div class="settings-group">
-        <h2>Карточки</h2>
-        <div class="card-size-group">
-          <label>Размер карточек:</label>
-          <div class="radio-group">
-            <label class="radio">
-              <input v-model="cardSize" type="radio" value="small" />
-              <span class="radio-label">Маленький</span>
-            </label>
-            <label class="radio">
-              <input v-model="cardSize" type="radio" value="medium" />
-              <span class="radio-label">Средний</span>
-            </label>
-            <label class="radio">
-              <input v-model="cardSize" type="radio" value="large" />
-              <span class="radio-label">Большой</span>
-            </label>
+        <div class="theme-box">
+          <div class="theme-header">
+            <span class="theme-icon material-icons" aria-hidden="true">palette</span>
+            <span class="api-subtitle">Цвет акцента:</span>
+          </div>
+          <div class="theme-inner">
+            <div class="add-row">
+              <button class="color-add" @click="$refs.colorInput.click()">+</button>
+              <span class="add-label">Добавить цвет</span>
+              <input ref="colorInput" type="color" style="display: none" @change="onAddColor" />
+            </div>
+            <div class="color-grid">
+              <template v-for="color in themeStore.allColors" :key="color.value">
+                <button
+                  :class="['color-swatch', { active: themeStore.accentColor === color.value }]"
+                  :style="{
+                    backgroundColor: color.value,
+                    borderColor: themeStore.accentColor === color.value ? 'white' : 'transparent'
+                  }"
+                  :title="color.name"
+                  @click="themeStore.setAccentColor(color.value)"
+                ></button>
+              </template>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="settings-group">
+        <h2>Карточки</h2>
+        <p class="api-subtitle">Размер карточек:</p>
+        <div class="radio-group">
+          <label class="radio"
+            ><input v-model="cardSize" type="radio" value="small" /> Маленький</label
+          >
+          <label class="radio"
+            ><input v-model="cardSize" type="radio" value="medium" /> Средний</label
+          >
+          <label class="radio"
+            ><input v-model="cardSize" type="radio" value="large" /> Большой</label
+          >
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <h2>Плеер</h2>
+        <label class="setting-item">
+          <SliderRound v-model="isCentered">Автоцентрирование плеера</SliderRound>
+        </label>
+        <label class="setting-item">
+          <SliderRound v-model="isCardBorder">Окантовка вокруг карточек</SliderRound>
+        </label>
+        <label class="setting-item">
+          <SliderRound v-model="isCardHoverDisabled"
+            >Отключить подъём карточек при наведении</SliderRound
+          >
+        </label>
+        <button class="reset-button" @click="resetKinoBdSources">Очистить источники kinobd</button>
+      </div>
+
+      <div class="settings-group">
+        <h2>История и поиск</h2>
+        <label class="setting-item">
+          <SliderRound v-model="isHistoryAllowed">Сохранять историю просмотра</SliderRound>
+        </label>
+        <label class="setting-item">
+          <SliderRound v-model="isCtrlFEnabled">Перехватывать Ctrl+F для поиска</SliderRound>
+        </label>
+        <label class="setting-item">
+          <SliderRound v-model="rememberScrollPosition">Запоминать позицию скролла</SliderRound>
+        </label>
+        <button class="reset-button" @click="openClearHistory">Очистить историю просмотра</button>
+      </div>
+
+      <div class="settings-group">
         <h2>API</h2>
         <div class="radio-group">
-          <label class="radio">
-            <input v-model="contentApiProvider" type="radio" value="rhserv" />
-            <span class="radio-label">RHServ (original API)</span>
-          </label>
-          <label class="radio">
-            <input v-model="contentApiProvider" type="radio" value="kinobd" />
-            <span class="radio-label">KinoBD (search/cards/players)</span>
-          </label>
-          <label class="radio">
-            <input v-model="contentApiProvider" type="radio" value="kinobox" />
-            <span class="radio-label">Kinobox (players)</span>
-          </label>
+          <p class="api-subtitle">API для данных / плеера</p>
+          <label class="radio"
+            ><input v-model="contentApiProvider" type="radio" value="kinobd" /> KinoBD
+            (search/cards/players)</label
+          >
+          <label class="radio"
+            ><input v-model="contentApiProvider" type="radio" value="kinobox" /> Kinobox
+            (players)</label
+          >
         </div>
-        <p class="api-note">
-          RHServ: полный функционал (комментарии, тайминги, рейтинги). KinoBD: поиск/карточки/плееры.
-          Неподдерживаемые функции автоматически идут через RHServ.
-        </p>
-        <h3 class="api-subtitle">API для поиска</h3>
-        <div class="radio-group">
-          <label class="radio">
-            <input v-model="searchApiProvider" type="radio" value="rhserv" />
-            <span class="radio-label">RHServ (по умолчанию)</span>
-          </label>
-          <label class="radio">
-            <input v-model="searchApiProvider" type="radio" value="kinobd" />
-            <span class="radio-label">KinoBD</span>
-          </label>
+        <p class="api-note">KinoBD: поиск, карточки и плееры. Kinobox: только плееры.</p>
+
+        <div class="radio-group" style="margin-top: 12px">
+          <p class="api-subtitle">API для поиска</p>
+          <label class="radio"
+            ><input v-model="searchApiProvider" type="radio" value="kinobd" /> KinoBD</label
+          >
         </div>
+
         <p class="api-note">Этот параметр влияет только на поиск по названию.</p>
-        <div class="settings-actions">
-          <button class="reset-button" @click="resetKinoBdSources">
-            <i class="fa-solid fa-arrow-rotate-left"></i>
-            Сбросить выбранные источники KinoBD
-          </button>
-        </div>
-      </div>
-
-      <div class="settings-group">
-        <h2>История</h2>
-        <SliderRound v-model="isHistoryAllowed"> Сохранять историю просмотра</SliderRound>
-        <div class="settings-actions">
-          <button class="reset-button" @click="showModal = true">
-            <i class="fa-solid fa-trash-can"></i>
-            Очистить историю просмотра
-          </button>
-          <BaseModal
-            :is-open="showModal"
-            message="Вы уверены, что хотите очистить историю?"
-            @confirm="clearAllHistory"
-            @close="showModal = false"
-          />
-        </div>
-      </div>
-
-      <div class="settings-group">
-        <h2>Горячие клавиши</h2>
-        <SliderRound v-model="isCtrlFEnabled">Перехватывать Ctrl+F для поиска</SliderRound>
-      </div>
-
-      <div class="settings-group">
-        <h2>Навигация</h2>
-        <SliderRound v-model="rememberScrollPosition">Запоминать позицию скролла</SliderRound>
-      </div>
-
-      <div class="settings-group">
-        <h2>Комментарии</h2>
-        <SliderRound v-model="isCommentsEnabled">Показывать блок комментариев</SliderRound>
-        <SliderRound v-model="isAutoShowComments">Автоматически показывать комментарии</SliderRound>
-      </div>
-
-      <div class="settings-group">
-        <h2>Режим стримера</h2>
-        <SliderRound v-model="isStreamerMode"
-          >Мигание кнопки таймингов для привлечения внимания</SliderRound
-        >
       </div>
 
       <div class="settings-group">
@@ -153,47 +127,66 @@
         {{ appVersion }}
       </div>
     </div>
+
+    <BaseModal
+      :is-open="showModal"
+      message="Вы уверены, что хотите очистить историю?"
+      @confirm="confirmClearHistory"
+      @close="closeModal"
+    />
   </div>
 </template>
 
 <script setup>
 import SliderRound from '@/components/slider/SliderRound.vue'
-import ThemeSelector from '@/components/ThemeSelector.vue'
+import BaseModal from './BaseModal.vue'
 import { useBackgroundStore } from '@/store/background'
 import { useMainStore } from '@/store/main'
 import { usePlayerStore } from '@/store/player'
+import { useThemeStore } from '@/store/theme'
 import { computed, ref, watch } from 'vue'
-import BaseModal from './BaseModal.vue'
 
-const mainStore = useMainStore()
 const backgroundStore = useBackgroundStore()
+const mainStore = useMainStore()
 const playerStore = usePlayerStore()
+
 const showModal = ref(false)
 const appVersion = ref(import.meta.env.VITE_APP_VERSION_FULL_VERSION)
 
+const themeStore = useThemeStore()
+themeStore.initTheme()
+
 const clearAllHistory = () => {
   mainStore.clearAllHistory()
+}
+
+const openClearHistory = () => {
+  showModal.value = true
+}
+
+const confirmClearHistory = () => {
+  clearAllHistory()
   showModal.value = false
 }
 
-// Настройки фона (модуль background)
+const closeModal = () => {
+  showModal.value = false
+}
+
 const backgroundType = computed({
   get: () => backgroundStore.backgroundType,
   set: (value) => backgroundStore.updateBackgroundType(value)
 })
 
-// Вычисляемое свойство, определяющее, нужно ли отключать размытие
 const isBlurDisabled = computed(
   () => backgroundType.value === 'stars' || backgroundType.value === 'disable'
 )
 watch(isBlurDisabled, (newValue) => {
   if (newValue) {
-    // Отключаем размытие, если выбран звездный фон
     backgroundStore.toggleBlur(false)
   }
 })
 
-// Автоцентрирование плеера (из модуля player)
 const isCentered = computed({
   get: () => playerStore.isCentered,
   set: (value) => playerStore.updateCentering(value)
@@ -214,9 +207,6 @@ const isHistoryAllowed = computed({
   set: (value) => mainStore.setHistoryAllowed(value)
 })
 
-//
-
-
 const contentApiProvider = computed({
   get: () => mainStore.contentApiProvider,
   set: (value) => mainStore.setContentApiProvider(value)
@@ -232,29 +222,9 @@ const isCtrlFEnabled = computed({
   set: () => mainStore.toggleCtrlF()
 })
 
-const showFavoriteTooltip = computed({
-  get: () => playerStore.showFavoriteTooltip,
-  set: (value) => playerStore.setFavoriteTooltip(value)
-})
-
-const isCommentsEnabled = computed({
-  get: () => mainStore.isCommentsEnabled,
-  set: (value) => mainStore.setCommentsEnabled(value)
-})
-
-const isAutoShowComments = computed({
-  get: () => mainStore.isAutoShowComments,
-  set: (value) => mainStore.setAutoShowComments(value)
-})
-
 const cardSize = computed({
   get: () => mainStore.cardSize,
   set: (value) => mainStore.updateCardSize(value)
-})
-
-const isStreamerMode = computed({
-  get: () => mainStore.isStreamerMode,
-  set: (value) => mainStore.setStreamerMode(value)
 })
 
 const rememberScrollPosition = computed({
@@ -268,6 +238,16 @@ const resetBackground = () => {
 
 const resetKinoBdSources = () => {
   playerStore.clearKinoBdSources()
+}
+
+function onAddColor(event) {
+  const value = event.target.value
+  if (value) {
+    themeStore.addCustomColor(value)
+    themeStore.setAccentColor(value)
+    // reset input to allow re-choosing same color later
+    event.target.value = ''
+  }
 }
 </script>
 
@@ -353,21 +333,22 @@ h2 {
 }
 
 .reset-button {
-  background: var(--accent-color);
+  padding: 10px 16px;
+  border-radius: 6px;
   border: none;
-  padding: 10px 20px;
-  color: #fff;
-  font-size: 16px;
-  border-radius: 5px;
+  background-color: var(--accent-color);
+  color: white;
   cursor: pointer;
-  transition: 0.3s;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  text-decoration: none;
   display: flex;
-  gap: 1rem;
-  align-items: baseline;
+  align-items: center;
+  gap: 6px;
 }
 
 .reset-button:hover {
-  background: var(--accent-hover);
+  background-color: var(--accent-hover-color, var(--accent-hover));
 }
 
 .radio input:checked {
@@ -396,5 +377,99 @@ h2 {
   margin: 6px 0 0;
   font-size: 14px;
   font-weight: 600;
+}
+
+.theme-box {
+  background: rgba(0, 0, 0, 0.25);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--accent-transparent);
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 36px);
+  gap: 10px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.theme-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.theme-icon {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--accent-color);
+  border-radius: 6px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.theme-inner {
+  margin-top: 12px;
+}
+
+.add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.add-label {
+  color: #fff;
+  font-size: 13px;
+}
+
+.color-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  position: relative;
+}
+
+.color-swatch.active::after {
+  content: '✔';
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  color: white;
+  font-size: 16px;
+}
+
+.color-swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.color-swatch.active {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08) inset;
+  transform: translateY(-2px);
+}
+
+.color-add {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: white;
+  color: #222;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: none;
 }
 </style>

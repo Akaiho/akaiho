@@ -16,10 +16,8 @@
 <script setup>
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useNotificationsStore } from '@/store/notifications'
-import { useAuthStore } from '@/store/auth'
 
 const notificationsStore = useNotificationsStore()
-const authStore = useAuthStore()
 
 const unreadCount = computed(() => notificationsStore.unreadCount)
 const hasUnreadNotifications = computed(() => notificationsStore.hasUnreadNotifications)
@@ -32,18 +30,14 @@ const displayCount = computed(() => {
 let pollingInterval = null
 
 onMounted(() => {
-  if (authStore.token) {
-    notificationsStore.fetchUnreadCount()
+  notificationsStore.fetchUnreadCount()
 
-    pollingInterval = setInterval(
-      () => {
-        if (authStore.token) {
-          notificationsStore.fetchUnreadCount()
-        }
-      },
-      1000 * 60 * 5
-    ) // 30 minutes
-  }
+  pollingInterval = setInterval(
+    () => {
+      notificationsStore.fetchUnreadCount()
+    },
+    1000 * 60 * 5
+  ) // 30 minutes
 })
 
 onUnmounted(() => {

@@ -86,13 +86,6 @@
           "
           class="ratings-links"
         >
-          <component
-            :is="movieRatingComponent"
-            v-if="movieRatingComponent && movieInfo.kinopoisk_id"
-            :key="movieInfo.kinopoisk_id"
-            :kp-id="movieInfo.kinopoisk_id"
-            :show-dash="true"
-          />
 
           <div v-if="movieInfo.kinopoisk_id">
             <a
@@ -283,7 +276,6 @@ const errorMessage = ref('')
 const errorCode = ref(null)
 const movieInfo = ref(null)
 const moviePlayerComponent = ref(null)
-const movieRatingComponent = ref(null)
 const navbarStore = useNavbarStore()
 const notificationRef = ref(null)
 
@@ -407,9 +399,7 @@ onMounted(() => {
   import('@/components/PlayerComponent.vue').then((module) => {
     moviePlayerComponent.value = module.default
   })
-  import('@/components/MovieRating.vue').then((module) => {
-    movieRatingComponent.value = module.default
-  })
+
   if (!movieInfo.value) {
     fetchMovieInfo()
   }

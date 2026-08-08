@@ -15,78 +15,27 @@
 
 <script setup>
 import { useMainStore } from '@/store/main'
-import { useAuthStore } from '@/store/auth'
 import { useNavbarStore } from '@/store/navbar'
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref } from 'vue'
 import DesktopMenu from './MenuNavigation/DesktopMenu.vue'
 import MobileMenu from './MenuNavigation/MobileMenu.vue'
 import ModalSearch from './ModalSearch.vue'
-import { handleApiError } from '@/constants'
 
 const store = useMainStore()
-const authStore = useAuthStore()
 const navbarStore = useNavbarStore()
 const isMobile = computed(() => store.isMobile)
 const navLinks = ref([])
 
-const initializeNavLinks = (baseURL) => {
+const initializeNavLinks = () => {
   navLinks.value = [
     { to: '/', exact: true, icon: 'fas fa-home', text: 'Главная' },
-    {
-      to: authStore.user ? '/user' : '/login',
-      exact: true,
-      icon: authStore.user
-        ? authStore.user.photo
-          ? `${baseURL}${authStore.user.photo}`
-          : 'fas fa-user'
-        : 'fas fa-right-to-bracket',
-      text: authStore.user ? 'Профиль' : 'Войти'
-    },
-    ...(authStore.token
-      ? [
-          {
-            to: '/lists',
-            exact: true,
-            icon: 'fas fa-bookmark',
-            text: 'Мои списки'
-          },
-          {
-            to: '/notifications',
-            exact: true,
-            icon: 'fas fa-bell',
-            text: 'Уведомления',
-            component: 'NotificationBadge'
-          }
-        ]
-      : []),
     { to: '/top', icon: 'fa-solid fa-trophy', text: 'Популярное' },
     { to: '/settings', icon: 'fa-solid fa-gear', text: 'Настройки' },
-    { to: '/links', icon: 'fa-solid fa-info-circle', text: 'Полезные ссылки' }
+    { href: 'https://t.me/Akaihoho', icon: 'fab fa-telegram', text: 'Telegram' }
   ]
 }
 
-const baseURL = import.meta.env.VITE_APP_API_URL
-initializeNavLinks(baseURL)
-
-onMounted(async () => {
-  if (authStore.token) {
-    try {
-      const [{ getUser }, { getBaseURL }] = await Promise.all([
-        import('@/api/user'),
-        import('@/api/axios')
-      ])
-      let user = await getUser()
-      authStore.setUser(user)
-      const updatedBaseURL = await getBaseURL()
-      initializeNavLinks(updatedBaseURL)
-    } catch (error) {
-      const { code } = handleApiError(error)
-      if (code === 401) {
-        authStore.logout()
-      }
-    }
-  }
-})
+initializeNavLinks()
 </script>
 
 <style scoped>

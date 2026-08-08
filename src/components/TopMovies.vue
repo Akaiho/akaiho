@@ -2,24 +2,6 @@
   <div class="wrapper">
     <div class="top-100-page" tabindex="0">
       <div class="controls">
-        <div class="filter-card time-card">
-          <div class="button-group time-buttons">
-            <i class="material-icons card-icon">schedule</i>
-            <template v-for="(btn, idx) in timeFilters" :key="idx">
-              <div v-if="btn.type === 'separator'" class="filter-separator"></div>
-              <button
-                v-else
-                class="filter-btn time-btn"
-                :class="{ active: activeTimeFilter === btn.apiUrl, disabled: loading }"
-                :disabled="loading"
-                @click="changeTimeFilter(btn.apiUrl)"
-              >
-                {{ btn.label }}
-              </button>
-            </template>
-          </div>
-        </div>
-
         <div class="filter-card type-card">
           <div class="button-group type-buttons">
             <i class="material-icons card-icon">movie</i>
@@ -78,19 +60,11 @@ const loadingMore = ref(false)
 const loadMoreSentinel = ref(null)
 let loadMoreObserver = null
 
-const timeFilters = [
-  { label: '24 часа', apiUrl: '24h' },
-  { label: '7 дней', apiUrl: '7d' },
-  { label: '30 дней', apiUrl: '30d' },
-  { label: 'Всё время', apiUrl: 'all' },
-  { label: '---', apiUrl: 'separator', type: 'separator' },
-  { label: 'Обсуждаемое', apiUrl: 'discussed' }
-]
-
 const normalTypeFilters = [
   { label: 'Все', value: 'all' },
   { label: 'Фильмы', value: 'movie' },
-  { label: 'Сериалы', value: 'series' }
+  { label: 'Сериалы', value: 'series' },
+  { label: 'Аниме', value: 'anime' }
 ]
 
 const discussedTypeFilters = [
@@ -240,42 +214,18 @@ watch(canShowMore, (canLoad) => {
   }
 })
 
-const changeTimeFilter = (apiUrl) => {
-  const previousTimeFilter = activeTimeFilter.value
-  activeTimeFilter.value = apiUrl
-
-  if (apiUrl === 'discussed') {
-    if (previousTimeFilter !== 'discussed') {
-      lastNormalTypeFilter.value = typeFilter.value
-    }
-    typeFilter.value = 'hot'
-  } else if (previousTimeFilter === 'discussed') {
-    typeFilter.value = lastNormalTypeFilter.value
-  }
-
-  router
-    .push({
-      query: {
-        ...route.query,
-        time: activeTimeFilter.value,
-        type: typeFilter.value
-      }
-    })
-}
-
 const changeTypeFilter = (value) => {
   typeFilter.value = value
   if (activeTimeFilter.value !== 'discussed') {
     lastNormalTypeFilter.value = value
   }
 
-  router
-    .push({
-      query: {
-        ...route.query,
-        type: value
-      }
-    })
+  router.push({
+    query: {
+      ...route.query,
+      type: value
+    }
+  })
 }
 
 watch(
@@ -306,14 +256,14 @@ onUnmounted(disconnectInfiniteScroll)
 .wrapper {
   display: flex;
   min-height: 100vh;
+  width: 100%;
 }
 
 .top-100-page {
   flex: 1;
   padding-top: 20px;
   padding-bottom: 40px;
-  max-width: calc(258px * 5);
-  margin: 0 auto;
+  width: 100%;
 }
 
 .controls {
@@ -324,7 +274,7 @@ onUnmounted(disconnectInfiniteScroll)
   width: 100%;
   align-items: center;
   justify-content: center;
-  padding: 0 15px;
+  padding: 0;
   box-sizing: border-box;
 }
 

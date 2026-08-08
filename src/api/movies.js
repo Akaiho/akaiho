@@ -3,7 +3,6 @@ import { normalizeMovieListResponse } from '@/api/movieSeoNormalizer'
 import { trackAnalyticsEvent } from '@/utils/analytics'
 
 const CONTENT_PROVIDERS = {
-  RHSERV: 'rhserv',
   KINOBD: 'kinobd',
   KINOBOX: 'kinobox'
 }
@@ -20,13 +19,11 @@ const KINOBOX_SUPPORTED_METHODS = new Set(['getPlayers'])
 const PLAYER_PROVIDER_TIMEOUT_MS = 15000
 
 const providers = {
-  rhserv: null,
   kinobd: null,
   kinobox: null
 }
 
 const providerImporters = {
-  rhserv: () => import('@/api/movies.rhserv'),
   kinobd: () => import('@/api/movies.kinobd'),
   kinobox: () => import('@/api/movies.kinobox')
 }
@@ -51,9 +48,9 @@ const getCurrentProvider = () => {
 const getCurrentSearchProvider = () => {
   try {
     const mainStore = useMainStore()
-    return mainStore.searchApiProvider || CONTENT_PROVIDERS.RHSERV
+    return mainStore.searchApiProvider || CONTENT_PROVIDERS.KINOBD
   } catch {
-    return CONTENT_PROVIDERS.RHSERV
+    return CONTENT_PROVIDERS.KINOBD
   }
 }
 
@@ -182,17 +179,17 @@ const callWithProvider = async (methodName, ...args) => {
       const kinobox = await loadProvider('kinobox')
       return await kinobox[methodName](...args)
     } catch (error) {
-      console.warn(`[movies] ${methodName} failed on Kinobox, fallback to KinoBD/RHServ`, error)
+      console.warn(`[movies] ${methodName} failed on Kinobox, fallback to KinoBD`, error)
       if (KINOBD_SUPPORTED_METHODS.has(methodName)) {
         try {
           const kinobd = await loadProvider('kinobd')
           return await kinobd[methodName](...args)
         } catch (fallbackError) {
-          console.warn(`[movies] ${methodName} failed on KinoBD, fallback to RHServ`, fallbackError)
+          console.warn(`[movies] ${methodName} failed on KinoBD`, fallbackError)
+          throw fallbackError
         }
       }
-      const rhserv = await loadProvider('rhserv')
-      return await rhserv[methodName](...args)
+      throw error
     }
   }
 
@@ -201,9 +198,8 @@ const callWithProvider = async (methodName, ...args) => {
       const kinobd = await loadProvider('kinobd')
       return await kinobd[methodName](...args)
     } catch (error) {
-      console.warn(`[movies] ${methodName} failed on KinoBD (Kinobox mode), fallback to RHServ`, error)
-      const rhserv = await loadProvider('rhserv')
-      return await rhserv[methodName](...args)
+      console.warn(`[movies] ${methodName} failed on KinoBD (Kinobox mode)`, error)
+      throw error
     }
   }
 
@@ -212,14 +208,12 @@ const callWithProvider = async (methodName, ...args) => {
       const kinobd = await loadProvider('kinobd')
       return await kinobd[methodName](...args)
     } catch (error) {
-      console.warn(`[movies] ${methodName} failed on KinoBD, fallback to RHServ`, error)
-      const rhserv = await loadProvider('rhserv')
-      return await rhserv[methodName](...args)
+      console.warn(`[movies] ${methodName} failed on KinoBD`, error)
+      throw error
     }
   }
 
-  const rhserv = await loadProvider('rhserv')
-  return await rhserv[methodName](...args)
+  throw new Error(`Method ${methodName} is not supported by any provider`)
 }
 
 const apiSearch = async (...args) => {
@@ -230,64 +224,77 @@ const apiSearch = async (...args) => {
       const kinobd = await loadProvider('kinobd')
       return await normalizeMovieListResponse(await kinobd.apiSearch(...args))
     } catch (error) {
-      console.warn('[movies] apiSearch failed on KinoBD, fallback to RHServ', error)
-      const rhserv = await loadProvider('rhserv')
-      return await normalizeMovieListResponse(await rhserv.apiSearch(...args))
+      console.warn('[movies] apiSearch failed on KinoBD', error)
+      throw error
     }
   }
 
-  const rhserv = await loadProvider('rhserv')
-  return await normalizeMovieListResponse(await rhserv.apiSearch(...args))
+  throw new Error('No search provider available')
 }
 const getShikiInfo = async (...args) => callWithProvider('getShikiInfo', ...args)
 const getKpInfo = async (...args) => callWithProvider('getKpInfo', ...args)
 const getPlayers = async (...args) => getPlayersWithFallback(...args)
 const getShikiPlayers = async (...args) => callWithProvider('getShikiPlayers', ...args)
 const shouldEnrichListSeo = true
-// Top lists come from RHServ by default; KinoBD is used as a fallback.
+// Top lists come from KinoBD
 const getMovies = async (...args) => {
   try {
-    return await normalizeMovieListResponse(await (await loadProvider('rhserv')).getMovies(...args), {
-      enrichMissingSeo: shouldEnrichListSeo
-    })
+    return await normalizeMovieListResponse(
+      await (await loadProvider('kinobd')).getMovies(...args),
+      {
+        enrichMissingSeo: shouldEnrichListSeo
+      }
+    )
   } catch (error) {
-    console.warn('[movies] getMovies failed on RHServ, fallback to KinoBD', error)
-    return await normalizeMovieListResponse(await (await loadProvider('kinobd')).getMovies(...args), {
-      enrichMissingSeo: shouldEnrichListSeo
-    })
+    console.warn('[movies] getMovies failed on KinoBD', error)
+    throw error
   }
 }
 const getDiscussedMovies = async (...args) =>
-  await normalizeMovieListResponse(await (await loadProvider('rhserv')).getDiscussedMovies(...args), {
-    enrichMissingSeo: shouldEnrichListSeo
-  })
-const getDons = async (...args) => callWithProvider('getDons', ...args)
+  await normalizeMovieListResponse(
+    await (await loadProvider('kinobd')).getDiscussedMovies(...args),
+    {
+      enrichMissingSeo: shouldEnrichListSeo
+    }
+  )
+const getDons = async () => {
+  throw new Error('Function no longer supported')
+}
 const getKpIDfromIMDB = async (...args) => callWithProvider('getKpIDfromIMDB', ...args)
-const getNudityInfoFromIMDB = async (...args) => callWithProvider('getNudityInfoFromIMDB', ...args)
-const getKpIDfromSHIKI = async (...args) => callWithProvider('getKpIDfromSHIKI', ...args)
-const getRating = async (...args) => callWithProvider('getRating', ...args)
-const setRating = async (...args) => callWithProvider('setRating', ...args)
-const getComments = async (...args) => callWithProvider('getComments', ...args)
-const createComment = async (...args) => callWithProvider('createComment', ...args)
-const updateComment = async (...args) => callWithProvider('updateComment', ...args)
-const deleteComment = async (...args) => callWithProvider('deleteComment', ...args)
-const rateComment = async (...args) => callWithProvider('rateComment', ...args)
-const submitTiming = async (...args) => callWithProvider('submitTiming', ...args)
-const updateTiming = async (...args) => callWithProvider('updateTiming', ...args)
-const deleteTiming = async (...args) => callWithProvider('deleteTiming', ...args)
-const reportTiming = async (...args) => callWithProvider('reportTiming', ...args)
-const getTopTimingSubmitters = async (...args) => callWithProvider('getTopTimingSubmitters', ...args)
-const getAllTimingSubmissions = async (...args) => callWithProvider('getAllTimingSubmissions', ...args)
+const getNudityInfoFromIMDB = async () => {
+  throw new Error('Function no longer supported')
+}
+const getKpIDfromSHIKI = async () => {
+  throw new Error('Function no longer supported')
+}
+const getComments = async () => {
+  throw new Error('Function no longer supported')
+}
+const createComment = async () => {
+  throw new Error('Function no longer supported')
+}
+const updateComment = async () => {
+  throw new Error('Function no longer supported')
+}
+const deleteComment = async () => {
+  throw new Error('Function no longer supported')
+}
+const rateComment = async () => {
+  throw new Error('Function no longer supported')
+}
 const getRandomMovie = async (...args) => callWithProvider('getRandomMovie', ...args)
-const approveTiming = async (...args) => callWithProvider('approveTiming', ...args)
-const rejectTiming = async (...args) => callWithProvider('rejectTiming', ...args)
-const markAsCleanText = async (...args) => callWithProvider('markAsCleanText', ...args)
-const getTwitchStream = async (...args) => callWithProvider('getTwitchStream', ...args)
-const voteOnTiming = async (...args) => callWithProvider('voteOnTiming', ...args)
-const getTimingVote = async (...args) => callWithProvider('getTimingVote', ...args)
-const getMovieNote = async (...args) => callWithProvider('getMovieNote', ...args)
-const saveMovieNote = async (...args) => callWithProvider('saveMovieNote', ...args)
-const deleteMovieNote = async (...args) => callWithProvider('deleteMovieNote', ...args)
+const getTwitchStream = async () => {
+  throw new Error('Function no longer supported')
+}
+const getMovieNote = async () => {
+  throw new Error('Function no longer supported')
+}
+const saveMovieNote = async () => {
+  throw new Error('Function no longer supported')
+}
+const deleteMovieNote = async () => {
+  throw new Error('Function no longer supported')
+}
 
 export {
   searchKinoBDPlayerCandidates,
@@ -302,38 +309,22 @@ export {
   getDons,
   getKpIDfromIMDB,
   getKpIDfromSHIKI,
-  getRating,
-  setRating,
   getNudityInfoFromIMDB,
   getComments,
   createComment,
   updateComment,
   deleteComment,
   rateComment,
-  submitTiming,
-  updateTiming,
-  deleteTiming,
-  reportTiming,
-  getTopTimingSubmitters,
-  getAllTimingSubmissions,
   getRandomMovie,
-  approveTiming,
-  rejectTiming,
-  markAsCleanText,
   getTwitchStream,
-  voteOnTiming,
-  getTimingVote,
   getMovieNote,
   saveMovieNote,
   deleteMovieNote
 }
 
 export const toggleErrorSimulation = (enabled) => {
-  return Promise.all([loadProvider('rhserv'), loadProvider('kinobd'), loadProvider('kinobox')]).then(
-    ([rhserv, kinobd, kinobox]) => {
-      if (typeof rhserv.toggleErrorSimulation === 'function') {
-        rhserv.toggleErrorSimulation(enabled)
-      }
+  return Promise.all([loadProvider('kinobd'), loadProvider('kinobox')]).then(
+    ([kinobd, kinobox]) => {
       if (typeof kinobd.toggleErrorSimulation === 'function') {
         kinobd.toggleErrorSimulation(enabled)
       }
@@ -343,4 +334,3 @@ export const toggleErrorSimulation = (enabled) => {
     }
   )
 }
-

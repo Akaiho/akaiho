@@ -41,16 +41,6 @@ export const getOverlaySettingsMarkup = (settings) => `
       <input type="checkbox" id="showBackground" ${settings.showBackground ? 'checked' : ''} style="${overlayInlineStyles.settingsCheckbox}">
       <span style="${overlayInlineStyles.settingsLabelText}">Показывать затемненный фон</span>
     </label>
-
-    <label style="${overlayInlineStyles.settingsLabel}">
-      <input type="checkbox" id="showTimingsOnMouseMove" ${settings.showTimingsOnMouseMove ? 'checked' : ''} style="${overlayInlineStyles.settingsCheckbox}">
-      <span style="${overlayInlineStyles.settingsLabelText}">Показывать тайминги только при движении мышки</span>
-    </label>
-
-    <label style="${overlayInlineStyles.settingsLabel}">
-      <input type="checkbox" id="highlightTimings" ${settings.highlightTimings ? 'checked' : ''} style="${overlayInlineStyles.settingsCheckbox}">
-      <span style="${overlayInlineStyles.settingsLabelText}">Подсвечивать близкие и текущие тайминги</span>
-    </label>
   </div>
 
   <div style="${overlayInlineStyles.settingsActions}">
@@ -190,31 +180,6 @@ export const getVideoProgressStyle = ({ fontSize, showBackground }) => `
   width: ${showBackground ? 'fit-content' : 'auto'} !important;
 `
 
-export const getTimingsPanelStyle = ({ showBackground }) => `
-  position: absolute !important;
-  top: 20px !important;
-  right: 110px !important;
-  background: ${getPanelBackground(showBackground)} !important;
-  backdrop-filter: ${getPanelBackdrop(showBackground)} !important;
-  border-radius: 12px !important;
-  padding: 16px !important;
-  width: fit-content !important;
-  max-width: 800px !important;
-  pointer-events: none !important;
-  display: none !important;
-  transition: opacity 0.3s ease, visibility 0.3s ease !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-`
-
-export const getTimingsContentStyle = ({ fontSize }) => `
-  font-size: ${fontSize - 4}px !important;
-  color: ${MUTED_TEXT} !important;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
-  line-height: 1.4 !important;
-  word-wrap: break-word !important;
-`
-
 export const getControlsContainerStyle = () => `
   position: absolute !important;
   top: 20px !important;
@@ -268,23 +233,4 @@ export const applyOverlayProgressBackgroundStyle = (element, showBackground) => 
   element.style.display = `${showBackground ? 'inline-flex' : 'flex'} !important`
 }
 
-export const applyOverlayTimingsBackgroundStyle = (element, showBackground) => {
-  element.style.background = `${getPanelBackground(showBackground)} !important`
-  element.style.backdropFilter = `${getPanelBackdrop(showBackground)} !important`
-  element.style.width = 'fit-content !important'
-  element.style.minWidth = 'auto !important'
-}
-
 export const getMutedTextColor = () => MUTED_TEXT
-
-export const getTimingTextStyle = ({ status, highlight }) => {
-  if (status === 'active' && highlight) {
-    return { color: '#ff4444', fontWeight: 'bold' }
-  }
-
-  if (status === 'upcoming' && highlight) {
-    return { color: ACCENT_COLOR, fontWeight: '500' }
-  }
-
-  return { color: MUTED_TEXT, fontWeight: '' }
-}

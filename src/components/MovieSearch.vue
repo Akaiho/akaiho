@@ -155,14 +155,11 @@ import {
   getKpInfo
 } from '@/api/movies'
 import { handleApiError } from '@/constants'
-import { getMyLists, delAllFromList } from '@/api/user'
 import BaseModal from '@/components/BaseModal.vue'
 import DeleteButton from '@/components/buttons/DeleteButton.vue'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import { MovieList } from '@/components/MovieList/'
 import { useMainStore } from '@/store/main'
-import { useAuthStore } from '@/store/auth'
-import { USER_LIST_TYPES_ENUM } from '@/constants'
 import { hasConsecutiveConsonants, suggestLayout, convertLayout } from '@/utils/keyboardLayout'
 import { normalizeBasePath } from '@/utils/basePath'
 import debounce from 'lodash.debounce'
@@ -175,7 +172,6 @@ import { getMovieSeoPath } from '@/utils/movieSeo'
 import { debugLog } from '@/utils/logger'
 
 const mainStore = useMainStore()
-const authStore = useAuthStore()
 const router = useRouter()
 
 const searchType = ref('title')
@@ -373,36 +369,9 @@ watch(canLoadMoreTopMovies, (canLoad) => {
   }
 })
 
-watch(
-  () => authStore.token,
-  async (token) => {
-    if (token) {
-      history.value = mainStore.history
-      historyLoading.value = mainStore.history.length === 0
-      try {
-        const serverHistory = await getMyLists(USER_LIST_TYPES_ENUM.HISTORY)
-        mainStore.setHistory(serverHistory)
-        history.value = serverHistory
-      } catch (error) {
-        const { message, code } = handleApiError(error)
-        errorMessage.value = message
-        errorCode.value = code
-        console.error('Ошибка загрузки истории:', error)
-        if (code === 401) {
-          authStore.logout()
-          await router.push('/login')
-          router.go(0)
-        }
-      } finally {
-        historyLoading.value = false
-      }
-      return
-    }
-
-    history.value = mainStore.history
-  },
-  { immediate: true }
-)
+onMounted(() => {
+  history.value = mainStore.history
+})
 
 watch(
   () => mainStore.history,
@@ -471,11 +440,19 @@ const resetSearch = () => {
 
 const search = () => {
   debouncedPerformSearch.cancel()
-  if (searchTerm.value) {
-    errorMessage.value = ''
+  const query = searchTerm.value?.trim() || ''
+
+  if (query.length < 3) {
+    errorMessage.value = 'Введите минимум 3 символа для поиска'
     errorCode.value = null
-    performSearch()
+    movies.value = []
+    searchPerformed.value = false
+    return
   }
+
+  errorMessage.value = ''
+  errorCode.value = null
+  performSearch()
 }
 
 const performSearch = async () => {
@@ -543,45 +520,17 @@ const performSearch = async () => {
 }
 
 const clearAllHistory = async () => {
-  historyLoading.value = true
-  if (authStore.token) {
-    try {
-      await delAllFromList(USER_LIST_TYPES_ENUM.HISTORY)
-      mainStore.clearAllHistory()
-      history.value = []
-      if (!topMovies.value.length) {
-        loadHomeTopMovies()
-      }
-      historyLoading.value = false
-      showModal.value = false
-    } catch (error) {
-      const { message, code } = handleApiError(error)
-      errorMessage.value = message
-      errorCode.value = code
-      console.error('Ошибка загрузки истории:', error)
-      if (code === 401) {
-        authStore.logout()
-        await router.push('/login')
-        router.go(0)
-      }
-      historyLoading.value = false
-      showModal.value = false
-    }
-  } else {
-    mainStore.clearAllHistory()
-    history.value = []
-    if (!topMovies.value.length) {
-      loadHomeTopMovies()
-    }
-    historyLoading.value = false
-    showModal.value = false
+  mainStore.clearAllHistory()
+  history.value = []
+  if (!topMovies.value.length) {
+    loadHomeTopMovies()
   }
+  showModal.value = false
 }
-
 const debouncedPerformSearch = debounce(() => {
-  if (searchTerm.value.length >= 2) {
+  if (searchTerm.value.length >= 3) {
     performSearch()
-  } else if (searchTerm.value.length < 2) {
+  } else if (searchTerm.value.length < 3) {
     movies.value = []
     searchPerformed.value = false
   }
@@ -661,8 +610,7 @@ const fetchRandomMovie = async () => {
           premiere_ru: kpInfo.premiere_ru,
           premiere_world: kpInfo.premiere_world,
           age_rating: kpInfo.age_rating,
-          duration: kpInfo.duration,
-          total_rating: kpInfo.total_rating
+          duration: kpInfo.duration
         }
       } catch {
         randomMovie.value = response

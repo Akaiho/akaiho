@@ -82,97 +82,7 @@
           ref="tooltipContainer"
           class="tooltip-container list-buttons-container"
           data-tooltip-container="favorite"
-        >
-          <button
-            v-if="showFavoriteTooltip"
-            class="favorite-btn"
-            :class="{ active: movieInfo?.lists?.isFavorite }"
-            @mouseenter="showTooltip('favorite')"
-            @mouseleave="tryHideTooltip"
-            @click="toggleList(USER_LIST_TYPES_ENUM.FAVORITE)"
-          >
-            <span class="material-icons">{{
-              movieInfo?.lists?.isFavorite ? 'favorite' : 'favorite_border'
-            }}</span>
-            <span class="material-icons dropdown-arrow" :class="{ highlighted: isInAnyList }"
-              >expand_more</span
-            >
-          </button>
-          <div
-            v-show="activeTooltip === 'favorite' && showFavoriteTooltip"
-            ref="tooltip"
-            class="custom-tooltip advanced-tooltip list-buttons-dropdown"
-            data-tooltip="favorite"
-            @mouseenter="keepTooltipVisible"
-            @mouseleave="hideTooltip"
-          >
-            <div class="list-button-item">
-              <button
-                class="favorite-btn"
-                :class="{ active: movieInfo?.lists?.isFavorite }"
-                @click="toggleList(USER_LIST_TYPES_ENUM.FAVORITE)"
-              >
-                <span class="material-icons">{{
-                  movieInfo?.lists?.isFavorite ? 'favorite' : 'favorite_border'
-                }}</span>
-                <span class="button-label">В избранное</span>
-              </button>
-            </div>
-            <div class="list-button-item">
-              <button
-                class="watching-btn"
-                :class="{ active: movieInfo?.lists?.isWatching }"
-                @click="toggleList(USER_LIST_TYPES_ENUM.WATCHING)"
-              >
-                <span class="material-icons">{{
-                  movieInfo?.lists?.isWatching ? 'visibility' : 'visibility_off'
-                }}</span>
-                <span class="button-label">Смотрю</span>
-              </button>
-            </div>
-            <div class="list-button-item">
-              <button
-                class="later-btn"
-                :class="{ active: movieInfo?.lists?.isLater }"
-                @click="toggleList(USER_LIST_TYPES_ENUM.LATER)"
-              >
-                <span class="material-icons">watch_later</span>
-                <span class="button-label">Смотреть позже</span>
-              </button>
-            </div>
-            <div class="list-button-item">
-              <button
-                class="completed-btn"
-                :class="{ active: movieInfo?.lists?.isCompleted }"
-                @click="toggleList(USER_LIST_TYPES_ENUM.COMPLETED)"
-              >
-                <span class="material-icons">{{
-                  movieInfo?.lists?.isCompleted ? 'check_circle' : 'check_circle_outline'
-                }}</span>
-                <span class="button-label">Просмотрено</span>
-              </button>
-            </div>
-            <div class="list-button-item">
-              <button
-                class="abandoned-btn"
-                :class="{ active: movieInfo?.lists?.isAbandoned }"
-                @click="toggleList(USER_LIST_TYPES_ENUM.ABANDONED)"
-              >
-                <span class="material-icons">{{
-                  movieInfo?.lists?.isAbandoned ? 'not_interested' : 'not_interested'
-                }}</span>
-                <span class="button-label">Брошено</span>
-              </button>
-            </div>
-            <div class="tooltip-hint">
-              <span class="material-icons">settings</span>
-              <span
-                >Стиль отображения можно изменить в
-                <a class="settings-link" @click="openSettings">настройках</a></span
-              >
-            </div>
-          </div>
-        </div>
+        ></div>
 
         <template v-if="!isMobile">
           <div class="tooltip-container" data-tooltip-container="dimming">
@@ -484,13 +394,10 @@ import Notification from '@/components/notification/ToastMessage.vue'
 import SliderRound from '@/components/slider/SliderRound.vue'
 import { usePlayerElectronControls } from '@/composables/usePlayerElectronControls'
 import { usePlayerLayout } from '@/composables/usePlayerLayout'
-import { usePlayerLists } from '@/composables/usePlayerLists'
 import { usePlayerSharing } from '@/composables/usePlayerSharing'
 import { usePlayerSources } from '@/composables/usePlayerSources'
 import { useMainStore } from '@/store/main'
 import { usePlayerStore } from '@/store/player'
-import { useAuthStore } from '@/store/auth'
-import { USER_LIST_TYPES_ENUM } from '@/constants'
 import {
   computed,
   defineAsyncComponent,
@@ -500,10 +407,10 @@ import {
   ref,
   watch
 } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import PlayerModal from '@/components/PlayerModal.vue'
 import PlayerSelectorBar from '@/components/player/PlayerSelectorBar.vue'
-import { parseTimingTextToSeconds, formatSecondsToTime } from '@/utils/dateUtils'
+import { formatSecondsToTime } from '@/utils/dateUtils'
 import { OBSWebSocket } from '@/utils/obsWebSocket'
 import { debugLog } from '@/utils/logger'
 import { getProviderDisplayName } from '@/utils/playerUtils'
@@ -511,7 +418,6 @@ import { trackAnalyticsEvent } from '@/utils/analytics'
 import {
   applyOverlayButtonHoverStyle,
   applyOverlayProgressBackgroundStyle,
-  applyOverlayTimingsBackgroundStyle,
   applyOverlayTitleBackgroundStyle,
   applyOverlayVisibilityStyle,
   applySettingsButtonHoverStyle,
@@ -519,7 +425,6 @@ import {
   getDurationProgressMarkup,
   getMainInfoStyle,
   getMovieTitleStyle,
-  getMutedTextColor,
   getObsStatusMarkup,
   getOverlayBaseStyle,
   getOverlayButtonStyle,
@@ -527,9 +432,6 @@ import {
   getOverlaySettingsMarkup,
   getSettingsModalContentStyle,
   getSettingsModalStyle,
-  getTimingTextStyle,
-  getTimingsContentStyle,
-  getTimingsPanelStyle,
   getVideoProgressStyle
 } from '@/utils/playerOverlayStyles'
 
@@ -539,9 +441,7 @@ const PlayerSourceModal = defineAsyncComponent(
 
 const mainStore = useMainStore()
 const playerStore = usePlayerStore()
-const authStore = useAuthStore()
 const route = useRoute()
-const router = useRouter()
 const kp_id = ref(route.params.kp_id)
 
 const props = defineProps({
@@ -622,10 +522,7 @@ const { copyMovieLink } = usePlayerSharing({
 })
 
 const tooltipContainer = ref(null)
-const tooltip = ref(null)
 const videoPositionInterval = ref(null)
-const overlayTimingsCheckInterval = ref(null)
-const lastOverlayTimingsCount = ref(0)
 
 const {
   compressorEnabled,
@@ -658,9 +555,6 @@ const overlaySettings = computed({
 })
 const currentVideoTime = ref(0)
 const totalVideoDuration = ref(0)
-const activeTimingTexts = ref([])
-const hasActiveTimings = ref(false)
-let hideTimingsTimeout = null
 
 const currentOverlayElement = ref(null)
 const overlayControlsTimeout = ref(null)
@@ -728,16 +622,6 @@ const hideTooltip = () => {
   activeTooltip.value = null
 }
 
-const isInAnyList = computed(() => {
-  return (
-    props.movieInfo?.lists?.isFavorite ||
-    props.movieInfo?.lists?.isWatching ||
-    props.movieInfo?.lists?.isLater ||
-    props.movieInfo?.lists?.isCompleted ||
-    props.movieInfo?.lists?.isAbandoned
-  )
-})
-
 const startVideoPositionMonitoring = (isDebug = false) => {
   if (!isElectron.value) return
 
@@ -748,30 +632,8 @@ const startVideoPositionMonitoring = (isDebug = false) => {
   let blurApplied = false
   let blurIntervals = []
 
-  function updateBlurIntervals() {
-    blurIntervals = []
-    if (
-      window.selectedNudityTimings &&
-      Array.isArray(window.selectedNudityTimings) &&
-      props.movieInfo?.nudity_timings
-    ) {
-      for (const timing of props.movieInfo.nudity_timings) {
-        if (window.selectedNudityTimings.includes(timing.id)) {
-          const parsedRanges = parseTimingTextToSeconds(timing.timing_text)
-          if (parsedRanges && parsedRanges.length > 0) {
-            blurIntervals.push(...parsedRanges)
-          }
-        }
-      }
-    }
-  }
-
-  updateBlurIntervals()
-
   videoPositionInterval.value = setInterval(() => {
     if (!playerIframe.value) return
-
-    updateBlurIntervals()
 
     try {
       const iframe = playerIframe.value
@@ -808,55 +670,6 @@ const startVideoPositionMonitoring = (isDebug = false) => {
               removeVideoOverlay()
             }
           }, 100)
-        }
-
-        if (isElectron.value && props.movieInfo?.nudity_timings) {
-          const currentTime = video.currentTime
-          const selectedTimings = []
-          const activeTimingIds = []
-
-          if (
-            window.overlayNudityTimings &&
-            Array.isArray(window.overlayNudityTimings) &&
-            window.overlayNudityTimings.length > 0
-          ) {
-            for (const timing of props.movieInfo.nudity_timings) {
-              if (window.overlayNudityTimings.includes(timing.id)) {
-                const parsedRanges = parseTimingTextToSeconds(timing.timing_text)
-
-                if (parsedRanges && parsedRanges.length > 0) {
-                  const intervals = []
-
-                  for (const [start, end] of parsedRanges) {
-                    let status = 'normal'
-                    if (currentTime >= start && currentTime <= end) {
-                      status = 'active'
-                      activeTimingIds.push(timing.id)
-                    } else if (start > currentTime && start - currentTime <= 5) {
-                      status = 'upcoming'
-                    }
-
-                    intervals.push({
-                      text: `[${formatSecondsToTime(start)}-${formatSecondsToTime(end)}]`,
-                      status: status
-                    })
-                  }
-
-                  selectedTimings.push({
-                    id: timing.id,
-                    intervals: intervals
-                  })
-                }
-              }
-            }
-          }
-
-          activeTimingTexts.value = selectedTimings
-          hasActiveTimings.value =
-            activeTimingIds.length > 0 ||
-            selectedTimings.some((timing) =>
-              timing.intervals.some((interval) => interval.status === 'upcoming')
-            )
         }
 
         if (isElectron.value && currentOverlayElement.value && videoOverlayEnabled2.value) {
@@ -1066,7 +879,6 @@ watch(
         clearInterval(videoPositionInterval.value)
         videoPositionInterval.value = null
       }
-      lastOverlayTimingsCount.value = 0
       await fetchPlayers()
       if (isCentered.value) centerPlayer()
     }
@@ -1090,7 +902,6 @@ watch(
       clearInterval(videoPositionInterval.value)
       videoPositionInterval.value = null
     }
-    lastOverlayTimingsCount.value = 0
     await fetchPlayers()
   }
 )
@@ -1126,26 +937,6 @@ watch(videoOverlayEnabled2, (enabled) => {
     removeVideoOverlay()
   }
 })
-
-watch(
-  activeTimingTexts,
-  (newTimings, oldTimings) => {
-    if (!isElectron.value) return
-
-    const hadTimings = oldTimings && oldTimings.length > 0
-    const hasTimings = newTimings && newTimings.length > 0
-
-    if (!hadTimings && hasTimings) {
-      if (!videoOverlayEnabled2.value) {
-        videoOverlayEnabled2.value = true
-        if (window.electronAPI) {
-          window.electronAPI.showToast('Оверлей автоматически включён - добавлены тайминги')
-        }
-      }
-    }
-  },
-  { deep: true }
-)
 
 watch(
   () => obsSettings.value.enabled,
@@ -1191,25 +982,7 @@ watch(
   { deep: true }
 )
 
-const openLogin = () => {
-  router.push('/login')
-}
-
-const { toggleList } = usePlayerLists({
-  authStore,
-  emit,
-  kpId: kp_id,
-  movieInfo: computed(() => props.movieInfo),
-  notificationRef,
-  openLogin
-})
-
 const showFavoriteTooltip = computed(() => playerStore.showFavoriteTooltip)
-
-const openSettings = () => {
-  router.push('/settings')
-  hideTooltip()
-}
 
 const toggleVideoOverlay = () => {
   videoOverlayEnabled2.value = !videoOverlayEnabled2.value
@@ -1412,9 +1185,7 @@ const showOverlaySettings = () => {
     const newSettings = {
       showTitle: modalContent.querySelector('#showTitle').checked,
       showDuration2: modalContent.querySelector('#showDuration').checked,
-      showBackground: modalContent.querySelector('#showBackground').checked,
-      showTimingsOnMouseMove: modalContent.querySelector('#showTimingsOnMouseMove').checked,
-      highlightTimings: modalContent.querySelector('#highlightTimings').checked
+      showBackground: modalContent.querySelector('#showBackground').checked
     }
     overlaySettings.value = newSettings
     window.electronAPI?.showToast('Настройки оверлея сохранены')
@@ -1517,15 +1288,6 @@ const createVideoOverlay = (iframeDoc, video) => {
     fontSize: initialFontSize,
     showBackground: overlaySettings.value.showBackground
   })
-
-  const timingsPanel = iframeDoc.createElement('div')
-  timingsPanel.style.cssText = getTimingsPanelStyle({
-    showBackground: overlaySettings.value.showBackground
-  })
-
-  const timingsContent = iframeDoc.createElement('div')
-  timingsContent.style.cssText = getTimingsContentStyle({ fontSize: initialFontSize })
-
   const controlsContainer = iframeDoc.createElement('div')
   controlsContainer.style.cssText = getControlsContainerStyle()
 
@@ -1621,13 +1383,10 @@ const createVideoOverlay = (iframeDoc, video) => {
   controlsContainer.appendChild(settingsBtn)
   controlsContainer.appendChild(toggleBtn)
 
-  timingsPanel.appendChild(timingsContent)
-
   mainInfo.appendChild(movieTitle)
   mainInfo.appendChild(videoProgress)
 
   overlay.appendChild(mainInfo)
-  overlay.appendChild(timingsPanel)
   overlay.appendChild(controlsContainer)
 
   controlsContainer.style.transition = 'opacity 0.3s ease, visibility 0.3s ease'
@@ -1639,19 +1398,6 @@ const createVideoOverlay = (iframeDoc, video) => {
   const handleMouseMove = () => {
     applyOverlayVisibilityStyle(controlsContainer, true)
     mainInfo.style.opacity = '0'
-
-    if (overlaySettings.value.showTimingsOnMouseMove && activeTimingTexts.value.length > 0) {
-      applyOverlayVisibilityStyle(timingsPanel, true)
-      clearTimeout(hideTimingsTimeout)
-      hideTimingsTimeout = null
-
-      if (!hasActiveTimings.value) {
-        hideTimingsTimeout = setTimeout(() => {
-          applyOverlayVisibilityStyle(timingsPanel, false)
-          hideTimingsTimeout = null
-        }, 3000)
-      }
-    }
 
     clearTimeout(overlayControlsTimeout.value)
     clearTimeout(hideMainInfoTimeout)
@@ -1958,7 +1704,6 @@ const updateVideoOverlay = () => {
 
   const overlay = currentOverlayElement.value
   const mainInfo = overlay.children[0]
-  const timingsPanel = overlay.children[1]
 
   const computedStyle = iframeDoc.defaultView.getComputedStyle(overlay)
   if (computedStyle.display === 'none' || computedStyle.visibility === 'hidden') {
@@ -2026,77 +1771,6 @@ const updateVideoOverlay = () => {
     applyOverlayProgressBackgroundStyle(videoProgress, overlaySettings.value.showBackground)
   } else {
     videoProgress.style.display = 'none'
-  }
-
-  if (activeTimingTexts.value.length > 0) {
-    const timingsContent = timingsPanel.children[0]
-    timingsContent.style.fontSize = `${currentFontSize - 4}px`
-    timingsContent.innerHTML = ''
-
-    const header = iframeDoc.createElement('span')
-    header.textContent = 'Тайминги: '
-    header.style.color = getMutedTextColor()
-    timingsContent.appendChild(header)
-
-    activeTimingTexts.value.forEach((timing, timingIndex) => {
-      if (timingIndex > 0) {
-        const separator = iframeDoc.createElement('span')
-        separator.textContent = ', '
-        separator.style.color = getMutedTextColor()
-        timingsContent.appendChild(separator)
-      }
-
-      timing.intervals.forEach((interval, intervalIndex) => {
-        if (intervalIndex > 0) {
-          const intervalSeparator = iframeDoc.createElement('span')
-          intervalSeparator.textContent = ', '
-          intervalSeparator.style.color = getMutedTextColor()
-          timingsContent.appendChild(intervalSeparator)
-        }
-
-        const intervalSpan = iframeDoc.createElement('span')
-        intervalSpan.textContent = interval.text
-
-        const timingStyle = getTimingTextStyle({
-          status: interval.status,
-          highlight: overlaySettings.value.highlightTimings
-        })
-        intervalSpan.style.color = timingStyle.color
-        intervalSpan.style.fontWeight = timingStyle.fontWeight
-
-        timingsContent.appendChild(intervalSpan)
-      })
-    })
-
-    timingsPanel.style.display = 'block'
-
-    if (!overlaySettings.value.showTimingsOnMouseMove || hasActiveTimings.value) {
-      applyOverlayVisibilityStyle(timingsPanel, true)
-    }
-
-    applyOverlayTimingsBackgroundStyle(timingsPanel, overlaySettings.value.showBackground)
-  } else {
-    timingsPanel.style.display = 'none'
-  }
-
-  if (
-    overlaySettings.value.showTimingsOnMouseMove &&
-    hasActiveTimings.value &&
-    activeTimingTexts.value.length > 0
-  ) {
-    applyOverlayVisibilityStyle(timingsPanel, true)
-    clearTimeout(hideTimingsTimeout)
-  } else if (
-    overlaySettings.value.showTimingsOnMouseMove &&
-    !hasActiveTimings.value &&
-    activeTimingTexts.value.length > 0 &&
-    timingsPanel.style.opacity === '1' &&
-    !hideTimingsTimeout
-  ) {
-    hideTimingsTimeout = setTimeout(() => {
-      applyOverlayVisibilityStyle(timingsPanel, false)
-      hideTimingsTimeout = null
-    }, 3000)
   }
 }
 
@@ -2199,25 +1873,6 @@ onMounted(() => {
     connectToOBS()
   }
 
-  if (isElectron.value) {
-    overlayTimingsCheckInterval.value = setInterval(() => {
-      const currentCount = window.overlayNudityTimings ? window.overlayNudityTimings.length : 0
-
-      if (currentCount > lastOverlayTimingsCount.value) {
-        lastOverlayTimingsCount.value = currentCount
-
-        if (!videoOverlayEnabled2.value) {
-          videoOverlayEnabled2.value = true
-          if (window.electronAPI) {
-            window.electronAPI.showToast('Оверлей автоматически включён - добавлены тайминги')
-          }
-        }
-      } else {
-        lastOverlayTimingsCount.value = currentCount
-      }
-    }, 1000)
-  }
-
   if (isElectron.value && videoOverlayEnabled2.value) {
     const initializeOverlay = () => {
       if (playerIframe.value && !currentOverlayElement.value) {
@@ -2254,9 +1909,6 @@ onBeforeUnmount(() => {
 
   if (videoPositionInterval.value) {
     clearInterval(videoPositionInterval.value)
-  }
-  if (overlayTimingsCheckInterval.value) {
-    clearInterval(overlayTimingsCheckInterval.value)
   }
   removeVideoOverlay()
   cleanupElectronControls()

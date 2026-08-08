@@ -5,8 +5,8 @@ info:
   description: Swagger/OpenAPI спецификация по фактическим вызовам фронтенда.
 
 servers:
-  - url: https://api4.rhserv.vu
-    description: Fallback API из VITE_APP_API_URL
+  - url: https://api.example.com
+    description: API endpoint (configured via Firebase Remote Config)
 
 tags:
   - name: Movies
@@ -117,14 +117,7 @@ components:
         - title
         - poster
         - raw_data
-        - average_rating
-    RatingRequest:
-      type: object
-      required: [rating]
-      properties:
-        rating:
-          type: number
-    CommentCreateRequest:
+        - average_rating    CommentCreateRequest:
       type: object
       required: [content]
       properties:
@@ -205,7 +198,7 @@ paths:
       summary: Поиск фильмов/аниме
       description: |
         Пример запроса:
-        `GET https://api4.rhserv.vu/search/Паразит`
+        `GET https://api.example.com/search/Паразит`
       parameters:
         - name: searchTerm
           in: path
@@ -363,33 +356,6 @@ paths:
           required: true
           schema: { type: string }
       responses: { '200': { description: OK } }
-
-  /rating/{kpId}:
-    get:
-      tags: [Movies]
-      summary: Получить рейтинг пользователя
-      parameters:
-        - name: kpId
-          in: path
-          required: true
-          schema: { type: string }
-      responses: { '200': { description: OK } }
-    post:
-      tags: [Movies]
-      summary: Установить рейтинг пользователя
-      parameters:
-        - name: kpId
-          in: path
-          required: true
-          schema: { type: string }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RatingRequest'
-      responses: { '200': { description: OK } }
-
   /comments/{id}:
     get:
       tags: [Movies]

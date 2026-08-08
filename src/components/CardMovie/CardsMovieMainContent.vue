@@ -29,18 +29,7 @@
         data-test-id="delete-button"
         @click.stop.prevent="emit('remove:from-history', movie.kp_id)"
       />
-      <div v-if="ratingKp || ratingImdb || ourRating" class="ratings-overlay">
-        <span
-          v-if="ourRating"
-          class="rating-our"
-          :class="{
-            'with-star': showStar,
-            [getRatingColor(ourRating)]: true
-          }"
-        >
-          <img :src="appLogoUrl" alt="Ahaiho" class="rating-logo" />
-          {{ `${Number(ourRating).toFixed(1).replace(/\.0$/, '')}` }}
-        </span>
+      <div v-if="ratingKp || ratingImdb" class="ratings-overlay">
         <span v-if="ratingKp" class="rating-kp" :class="getRatingColor(ratingKp)">
           <img :src="kpLogoUrl" alt="КП" class="rating-logo" />
           {{ ratingKp }}
@@ -72,7 +61,6 @@ import { computed } from 'vue'
 
 const mainStore = useMainStore()
 const cardSize = computed(() => mainStore.cardSize)
-const appLogoUrl = `${import.meta.env.BASE_URL || '/'}icons/icon-192x192.png`
 
 const {
   movie,
@@ -80,7 +68,6 @@ const {
   isHistory = false,
   isUserList = false,
   showDelete = true,
-  showStar = false,
   variant = 'default',
   priority = false
 } = defineProps({
@@ -89,7 +76,6 @@ const {
   isHistory: Boolean,
   isUserList: Boolean,
   showDelete: Boolean,
-  showStar: Boolean,
   variant: String,
   priority: Boolean
 })
@@ -102,7 +88,6 @@ const posterSrc = computed(() => {
 })
 const ratingKp = computed(() => movie?.rating_kp ?? movie?.rating_kinopoisk ?? null)
 const ratingImdb = computed(() => movie?.rating_imdb ?? null)
-const ourRating = computed(() => movie?.rating ?? movie?.average_rating ?? null)
 const imageLoading = computed(() => (priority ? 'eager' : 'lazy'))
 const imageFetchPriority = computed(() => (priority ? 'high' : 'low'))
 </script>
@@ -199,8 +184,7 @@ const imageFetchPriority = computed(() => (priority ? 'high' : 'low'))
 }
 
 .rating-kp,
-.rating-imdb,
-.rating-our {
+.rating-imdb {
   font-size: 1.2em;
   color: #fff;
   display: flex;
@@ -214,48 +198,21 @@ const imageFetchPriority = computed(() => (priority ? 'high' : 'low'))
   display: inline-block;
 }
 
-.rating-our {
-  font-size: 1.2em;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  position: relative;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
 
-.rating-our.with-star {
-  background: var(--accent-transparent);
-  border: 1px solid var(--accent-transparent);
-}
 
-.rating-our.with-star::after {
-  content: '★';
-  position: absolute;
-  top: -6px;
-  left: -6px;
-  font-size: 12px;
-  color: var(--accent-color);
-  line-height: 1;
-  padding-bottom: 1px;
-}
 
 .rating-kp.low,
-.rating-imdb.low,
-.rating-our.low {
+.rating-imdb.low.low {
   color: #ff6b6b !important;
 }
 
 .rating-kp.medium,
-.rating-imdb.medium,
-.rating-our.medium {
+.rating-imdb.medium.medium {
   color: #ffd93d !important;
 }
 
 .rating-kp.high,
-.rating-imdb.high,
-.rating-our.high {
+.rating-imdb.high.high {
   color: #51cf66 !important;
 }
 
@@ -299,18 +256,6 @@ const imageFetchPriority = computed(() => (priority ? 'high' : 'low'))
     width: 15px;
     height: auto;
     display: inline-block;
-  }
-
-  .rating-our {
-    font-size: 1em;
-    padding: 1px 4px;
-  }
-
-  .rating-our.with-star::after {
-    top: -5px;
-    left: -5px;
-    font-size: 10px;
-    padding-bottom: 1px;
   }
 }
 

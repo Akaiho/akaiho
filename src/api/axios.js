@@ -1,6 +1,5 @@
 import axios from 'axios'
 import { getCurrentApiUrl } from '@/firebase/firebase'
-import { useAuthStore } from '@/store/auth'
 import { useApiStore } from '@/store/api'
 
 let apiInstance = null
@@ -14,20 +13,11 @@ const getResolvedBaseUrl = async () => {
 const attachDynamicRequestState = (instance) => {
   instance.interceptors.request.use(
     async (config) => {
-      const authStore = useAuthStore()
       const baseURL = await getResolvedBaseUrl()
       config.headers = config.headers || {}
 
       config.baseURL = baseURL
       instance.defaults.baseURL = baseURL
-
-      if (authStore.token) {
-        config.headers.Authorization = `Bearer ${authStore.token}`
-        instance.defaults.headers.common['Authorization'] = `Bearer ${authStore.token}`
-      } else {
-        delete config.headers.Authorization
-        delete instance.defaults.headers.common['Authorization']
-      }
 
       return config
     },

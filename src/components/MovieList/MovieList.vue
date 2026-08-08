@@ -1,10 +1,6 @@
 <template>
   <div>
-    <div
-      v-show="!loading"
-      class="grid"
-      :class="[`card-size-${cardSize}`, `variant-${variant}`]"
-    >
+    <div v-show="!loading" class="grid" :class="[`card-size-${cardSize}`, `variant-${variant}`]">
       <template v-if="(isHistory || isUserList) && isMobile">
         <CardMovieSwipeWrapper
           v-for="(movie, index) in moviesList"
@@ -57,20 +53,14 @@
 import Spinner from '@/components/SpinnerLoading.vue'
 import { useBackgroundStore } from '@/store/background'
 import { useMainStore } from '@/store/main'
-import { useAuthStore } from '@/store/auth'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { CardMovie, CardMovieSwipeWrapper } from '../CardMovie'
-import { delFromList } from '@/api/user'
-import { handleApiError } from '@/constants'
-import { USER_LIST_TYPES_ENUM } from '@/constants'
 import { getMovieSeoPath } from '@/utils/movieSeo'
 
 const mainStore = useMainStore()
-const authStore = useAuthStore()
 const backgroundStore = useBackgroundStore()
 const router = useRouter()
-const route = useRoute()
 
 const {
   moviesList,
@@ -95,10 +85,7 @@ const isCardBorder = computed(() => backgroundStore.isCardBorder)
 const isMobile = computed(() => mainStore.isMobile)
 const cardSize = computed(() => mainStore.cardSize)
 const isUserList = computed(() => {
-  return (
-    route.name === 'lists' &&
-    (!route.params.user_id || String(route.params.user_id) === String(authStore.user?.id))
-  )
+  return false
 })
 
 const movieUrl = (movie) => {
@@ -107,31 +94,16 @@ const movieUrl = (movie) => {
 
 const emit = defineEmits(['item-deleted'])
 const removeFromHistory = async (kp_id) => {
-  if (authStore.token) {
-    try {
-      await delFromList(kp_id, USER_LIST_TYPES_ENUM.HISTORY)
-      mainStore.removeFromHistory(kp_id)
-      emit('item-deleted', kp_id)
-    } catch (error) {
-      const { code } = handleApiError(error)
-      console.error('Ошибка загрузки истории:', error)
-      if (code === 401) {
-        authStore.logout()
-        await router.push('/login')
-        router.go(0)
-      }
-    }
-  } else {
-    mainStore.removeFromHistory(kp_id)
-    emit('item-deleted', kp_id)
-  }
+  mainStore.removeFromHistory(kp_id)
+  emit('item-deleted', kp_id)
 }
 
 const handleKeyDown = (event) => {
   if (!moviesList?.length) return
 
-  const focusedCard =
-    event.target?.classList?.contains('movie-card') ? event.target : document.activeElement
+  const focusedCard = event.target?.classList?.contains('movie-card')
+    ? event.target
+    : document.activeElement
 
   if (!focusedCard?.classList?.contains('movie-card')) {
     return

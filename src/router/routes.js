@@ -48,52 +48,11 @@ export const routes = [
     }
   },
   {
-    path: '/notifications',
-    name: 'notifications',
-    component: () => import('@/components/NotificationsPage.vue'),
-    meta: {
-      title: 'Ahaiho - Уведомления',
-      requiresAuth: true
-    }
-  },
-  {
     path: '/:pathMatch(.*)*',
     component: () => import('@/components/NotFound.vue'),
     name: 'NotFound',
     meta: {
       title: '404 - Страница не найдена'
-    }
-  },
-  {
-    path: '/login',
-    name: 'login',
-    component: () => import('@/components/Login.vue'),
-    meta: {
-      title: 'Ahaiho - Логин'
-    }
-  },
-  {
-    path: '/user',
-    name: 'user',
-    component: () => import('@/components/User.vue'),
-    meta: {
-      title: 'Ahaiho - Профиль'
-    }
-  },
-  {
-    path: '/lists/:user_id?',
-    name: 'lists',
-    component: () => import('@/components/UserLists.vue'),
-    meta: {
-      title: 'Ahaiho - Списки'
-    }
-  },
-  {
-    path: '/auth-success',
-    name: 'auth-success',
-    component: () => import('@/components/AuthSuccess.vue'),
-    meta: {
-      title: 'Ahaiho - Логин'
     }
   },
   {

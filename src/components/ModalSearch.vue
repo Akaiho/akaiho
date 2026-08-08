@@ -54,7 +54,11 @@
             >
               <img
                 :src="movie.poster"
-                :alt="getMovieName(movie.raw_data) ? `Постер ${getMovieName(movie.raw_data)}` : 'Постер фильма'"
+                :alt="
+                  getMovieName(movie.raw_data)
+                    ? `Постер ${getMovieName(movie.raw_data)}`
+                    : 'Постер фильма'
+                "
                 class="movie__poster"
                 width="120"
                 height="180"
@@ -141,12 +145,28 @@ const resetSearch = () => {
 
 const search = () => {
   debouncedPerformSearch.cancel()
-  if (searchTerm.value) {
-    performSearch()
+  const query = searchTerm.value?.trim() || ''
+
+  if (query.length < 3) {
+    errorMessage.value = 'Введите минимум 3 символа для поиска'
+    errorCode.value = null
+    movies.value = []
+    return
   }
+
+  errorMessage.value = ''
+  errorCode.value = null
+  performSearch()
 }
 
 const performSearch = async () => {
+  const query = searchTerm.value?.trim() || ''
+  if (query.length < 3) {
+    movies.value = []
+    loading.value = false
+    return
+  }
+
   loading.value = true
   movies.value = []
 
@@ -171,9 +191,9 @@ const performSearch = async () => {
 }
 
 const debouncedPerformSearch = debounce(() => {
-  if (searchTerm.value.length >= 2) {
+  if (searchTerm.value.length >= 3) {
     performSearch()
-  } else if (searchTerm.value.length < 2) {
+  } else if (searchTerm.value.length < 3) {
     movies.value = []
   }
 }, 700)

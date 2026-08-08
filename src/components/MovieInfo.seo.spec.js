@@ -73,12 +73,6 @@ vi.mock('@/store/main', () => ({
   })
 }))
 
-vi.mock('@/store/auth', () => ({
-  useAuthStore: () => ({
-    token: ''
-  })
-}))
-
 vi.mock('@/store/navbar', () => ({
   useNavbarStore: () => ({
     setHeaderContent: vi.fn()

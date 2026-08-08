@@ -16,10 +16,9 @@ export const useMainStore = defineStore(MAIN_STORE_NAME, {
     isCtrlFEnabled: true,
     submitterUsername: '',
     cardSize: 'medium',
-    isStreamerMode: true,
     rememberScrollPosition: true,
     contentApiProvider: 'kinobox',
-    searchApiProvider: 'rhserv'
+    searchApiProvider: 'kinobd'
   }),
 
   actions: {
@@ -54,7 +53,8 @@ export const useMainStore = defineStore(MAIN_STORE_NAME, {
           slug: movie.slug || this.history[existingMovieIndex].slug || '',
           year: movie.year || this.history[existingMovieIndex].year || '',
           type: movie.type || this.history[existingMovieIndex].type || '',
-          poster: resolvePosterByMovie(movie) || this.history[existingMovieIndex].poster || noPosterImage,
+          poster:
+            resolvePosterByMovie(movie) || this.history[existingMovieIndex].poster || noPosterImage,
           addedAt: new Date().toISOString()
         }
 
@@ -110,10 +110,6 @@ export const useMainStore = defineStore(MAIN_STORE_NAME, {
       this.cardSize = size
     },
 
-    setStreamerMode(value) {
-      this.isStreamerMode = value
-    },
-
     setRememberScrollPosition(value) {
       this.rememberScrollPosition = value
     },
@@ -138,7 +134,6 @@ export const useMainStore = defineStore(MAIN_STORE_NAME, {
       'isCtrlFEnabled',
       'submitterUsername',
       'cardSize',
-      'isStreamerMode',
       'rememberScrollPosition',
       'contentApiProvider',
       'searchApiProvider'

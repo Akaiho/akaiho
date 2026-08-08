@@ -319,7 +319,7 @@ describe('Тесты миграций на новый способ хранен�
         isStreamerMode: true,
         rememberScrollPosition: true,
         contentApiProvider: 'kinobox',
-        searchApiProvider: 'rhserv'
+        searchApiProvider: 'kinobd'
       }
     }
 

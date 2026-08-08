@@ -21,8 +21,8 @@ export default defineConfig(({ mode }) => {
         timeZone: 'UTC'
       })
       .replace(/[.,]/g, '_')
-      .replace(/\s+/g, '') + '_UTC'
-  process.env.VITE_APP_VERSION_FULL_VERSION = process.env.VITE_APP_VERSION + '_' + formattedDate
+      .replace(/\s+/g, '') + ' UTC'
+  process.env.VITE_APP_VERSION_FULL_VERSION = process.env.VITE_APP_VERSION + '   ' + formattedDate
 
   return {
     base: base,

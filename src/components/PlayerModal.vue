@@ -7,7 +7,10 @@
 
       <ul class="players-list">
         <li v-for="player in props.players" :key="player.key">
-          <button :class="['player-item', { active: isSelected(player) }]" @click="selectPlayer(player)">
+          <button
+            :class="['player-item', { active: isSelected(player) }]"
+            @click="selectPlayer(player)"
+          >
             {{ formatPlayerLabel(player) }}
             <span v-if="player.warning" class="warning-icon material-icons" title="Внимание!"
               >warning</span
@@ -53,7 +56,7 @@ const getProviderName = (player) => {
   if (!segments.length) return ''
 
   const root = segments[0].toUpperCase()
-  if ((root === 'KINOBOX' || root === 'KINOBD' || root === 'RHSERV') && segments[1]) {
+  if ((root === 'KINOBOX' || root === 'KINOBD') && segments[1]) {
     return cleanName(segments[1])
   }
 

@@ -82,10 +82,6 @@
               </div>
 
               <div class="ratings">
-                <div v-if="movie.rating_akaiho" class="rating rating-our">
-                  <img :src="appLogoUrl" alt="akaiho" class="rating-logo" />
-                  {{ movie.rating_akaiho.toFixed(1) }}
-                </div>
 
                 <div v-if="movie.rating_kp" class="rating rating-kp">
                   <img :src="kpLogoUrl" alt="КП" class="rating-logo" />
@@ -96,10 +92,6 @@
                   <img :src="imdbLogoUrl" alt="IMDb" class="rating-logo" />
                   {{ movie.rating_imdb }}
                 </div>
-              </div>
-
-              <div v-if="movie.total_rating" class="total-ratings">
-                Всего оценок: {{ movie.total_rating }}
               </div>
 
               <div class="external-links">
@@ -153,7 +145,6 @@ import { getMovieSeoPath } from '@/utils/movieSeo'
 import imdbLogoUrl from '@/assets/icon-imdb-logo.svg'
 import kpLogoUrl from '@/assets/icon-kp-logo.svg'
 
-const appLogoUrl = `${import.meta.env.BASE_URL || '/'}icons/icon-192x192.png`
 
 const props = defineProps({
   isOpen: Boolean,
@@ -437,10 +428,6 @@ const handleImageError = (event) => {
   height: 20px;
 }
 
-.total-ratings {
-  font-size: 0.8rem;
-  opacity: 0.7;
-}
 
 .external-links {
   display: flex;

@@ -27,13 +27,6 @@
 <script setup>
 const externalLinks = [
   { href: 'https://t.me/Akaihoho', icon: 'fab fa-telegram', text: 'Telegram' },
-
-  { href: 'https://t.me/Akaihoho', icon: 'fab fa-telegram', text: 'Приложение' },
-  {
-    href: 'https://gitlab.com/akaiho/akaiho-chrome-ff-ext',
-    icon: 'fa-solid fa-puzzle-piece',
-    text: 'Расширение'
-  },
   { to: '/contact', icon: 'fa-regular fa-copyright', text: 'Copyright' }
 ]
 </script>

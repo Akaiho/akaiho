@@ -3,10 +3,7 @@
 ## 1) Базовый API backend
 
 - HTTP-клиент: `axios` через [`src/api/axios.js`](../src/api/axios.js)
-- Базовый URL берется динамически:
-  - сначала из Firebase Remote Config (`api_endpoints`),
-  - если не удалось, используется `VITE_APP_API_URL`.
-- Fallback в текущем `.env`: `https://api4.rhserv.vu`
+- Базовый URL берется динамически из Firebase Remote Config (`api_endpoints`).
 - Если есть токен, добавляется заголовок `Authorization: Bearer <token>`.
 
 ## 2) Проверка доступности API
@@ -32,8 +29,6 @@
 - `GET /imdb_to_kp/{imdb_id}`
 - `GET /imdb_parental_guide/{imdb_id}`
 - `GET /shiki_to_kp/{shiki_id}`
-- `GET /rating/{kpId}`
-- `POST /rating/{kpId}` body: `{ rating }`
 - `GET /comments/{movieId}`
 - `POST /comments/{movieId}` body: `{ content, parent_id }`
 - `PUT /comments/{commentId}` body: `{ content }`

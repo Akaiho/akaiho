@@ -121,49 +121,6 @@ const getYearsWord = (years) => {
   return 'лет'
 }
 
-export function parseTimingTextToSeconds(text) {
-  const results = []
-
-  const cleanedText = text.replace(/\[[^\]]*\d+[^\]]*\]/g, '')
-
-  const rangeRegex = /(\d{1,2}:)?\d{1,2}:\d{2}|\d{1,2}:\d{2}/g
-  const allMatches = [...cleanedText.matchAll(rangeRegex)]
-  if (allMatches.length > 0) {
-    let i = 0
-    while (i < allMatches.length) {
-      const startStr = allMatches[i][0]
-      let endStr = null
-      const after = cleanedText.slice(allMatches[i].index + startStr.length).match(/^[\s,\-–—]+/)
-      if (after && allMatches[i + 1]) {
-        endStr = allMatches[i + 1][0]
-        i += 2
-      } else {
-        i += 1
-      }
-      const toSec = (str) => {
-        if (!str) return null
-        const parts = str.split(':').map(Number)
-        if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
-        if (parts.length === 2) return parts[0] * 60 + parts[1]
-        if (parts.length === 1) return parts[0]
-        return null
-      }
-      const start = toSec(startStr)
-      const end = toSec(endStr)
-      if (start !== null && end !== null) {
-        const startTime = start
-        const endTime = end
-        results.push([startTime, endTime])
-      } else if (start !== null) {
-        const startTime = start
-        const endTime = start + 5
-        results.push([startTime, endTime])
-      }
-    }
-  }
-  return results
-}
-
 export function formatSecondsToTime(seconds) {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)

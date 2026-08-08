@@ -1,5 +1,4 @@
 import axios from 'axios'
-import * as rhserv from '@/api/movies.rhserv'
 import { resolvePosterSetByMovie } from '@/utils/mediaUtils'
 
 let apiInstance = null
@@ -469,18 +468,15 @@ const apiSearch = async (searchTerm, page = 1) => {
 }
 
 const getKpInfo = async (kpId) => {
-  const [kbResponse, rhFilm] = await Promise.all([
-    apiCall((api) =>
-      api.get('/api/films/search/kp_id', {
-        params: {
-          q: String(kpId),
-          page: 1,
-          with: 'persons,genres,countries,popularity,images'
-        }
-      })
-    ),
-    rhserv.getKpInfo(kpId).catch(() => null)
-  ])
+  const kbResponse = await apiCall((api) =>
+    api.get('/api/films/search/kp_id', {
+      params: {
+        q: String(kpId),
+        page: 1,
+        with: 'persons,genres,countries,popularity,images'
+      }
+    })
+  )
 
   const film = Array.isArray(kbResponse?.data?.data) ? kbResponse.data.data[0] : null
   if (!film) return null
@@ -488,10 +484,8 @@ const getKpInfo = async (kpId) => {
   const mappedFilm = mapKpInfo(film)
   return {
     ...mappedFilm,
-    sequels_and_prequels: Array.isArray(rhFilm?.sequels_and_prequels)
-      ? rhFilm.sequels_and_prequels
-      : [],
-    similars: Array.isArray(rhFilm?.similars) ? rhFilm.similars : []
+    sequels_and_prequels: [],
+    similars: []
   }
 }
 
@@ -546,9 +540,13 @@ const getPlayers = async (kpId, options = {}) => {
   return buildPlayersMap(candidates.map((c) => c.raw_data))
 }
 
-const getShikiInfo = async (...args) => rhserv.getShikiInfo(...args)
+const getShikiInfo = async () => {
+  throw new Error('Shiki API no longer supported')
+}
 
-const getShikiPlayers = async (...args) => rhserv.getShikiPlayers(...args)
+const getShikiPlayers = async () => {
+  throw new Error('Shiki API no longer supported')
+}
 
 const getMovies = async ({
   activeTime = 'all',
@@ -576,7 +574,19 @@ const getMovies = async ({
     return type.includes('serial') || type.includes('series') || type.includes('show')
   }
 
-  if (normalizedTypeFilter === 'movie') {
+  const matchesAnimeGenre = (film) => {
+    const genres = film?.genres || film?.genre || []
+    const genreArray = Array.isArray(genres) ? genres : String(genres).split(',')
+    return genreArray.some((g) =>
+      String(g || '')
+        .toLowerCase()
+        .includes('аниме')
+    )
+  }
+
+  if (normalizedTypeFilter === 'anime') {
+    rows = rows.filter((f) => matchesAnimeGenre(f))
+  } else if (normalizedTypeFilter === 'movie') {
     rows = rows.filter((f) => matchesMovieType(f?.type))
   } else if (normalizedTypeFilter === 'series') {
     rows = rows.filter((f) => matchesSeriesType(f?.type))
@@ -615,31 +625,43 @@ const getRandomMovie = async () => {
   return { kp_id: pick?.kinopoisk_id || null, source: 'kinobd', film: buildLegacyMovie(pick) }
 }
 
-const getDons = async (...args) => rhserv.getDons(...args)
-const getKpIDfromSHIKI = async (...args) => rhserv.getKpIDfromSHIKI(...args)
-const getNudityInfoFromIMDB = async (...args) => rhserv.getNudityInfoFromIMDB(...args)
-const getRating = async (...args) => rhserv.getRating(...args)
-const setRating = async (...args) => rhserv.setRating(...args)
-const getComments = async (...args) => rhserv.getComments(...args)
-const createComment = async (...args) => rhserv.createComment(...args)
-const updateComment = async (...args) => rhserv.updateComment(...args)
-const deleteComment = async (...args) => rhserv.deleteComment(...args)
-const rateComment = async (...args) => rhserv.rateComment(...args)
-const submitTiming = async (...args) => rhserv.submitTiming(...args)
-const updateTiming = async (...args) => rhserv.updateTiming(...args)
-const deleteTiming = async (...args) => rhserv.deleteTiming(...args)
-const reportTiming = async (...args) => rhserv.reportTiming(...args)
-const getTopTimingSubmitters = async (...args) => rhserv.getTopTimingSubmitters(...args)
-const getAllTimingSubmissions = async (...args) => rhserv.getAllTimingSubmissions(...args)
-const approveTiming = async (...args) => rhserv.approveTiming(...args)
-const rejectTiming = async (...args) => rhserv.rejectTiming(...args)
-const markAsCleanText = async (...args) => rhserv.markAsCleanText(...args)
-const getTwitchStream = async (...args) => rhserv.getTwitchStream(...args)
-const voteOnTiming = async (...args) => rhserv.voteOnTiming(...args)
-const getTimingVote = async (...args) => rhserv.getTimingVote(...args)
-const getMovieNote = async (...args) => rhserv.getMovieNote(...args)
-const saveMovieNote = async (...args) => rhserv.saveMovieNote(...args)
-const deleteMovieNote = async (...args) => rhserv.deleteMovieNote(...args)
+// Functions no longer available after removing rhserv dependency
+const getDons = async () => {
+  throw new Error('Function no longer supported')
+}
+const getKpIDfromSHIKI = async () => {
+  throw new Error('Function no longer supported')
+}
+const getNudityInfoFromIMDB = async () => {
+  throw new Error('Function no longer supported')
+}
+const getComments = async () => {
+  throw new Error('Function no longer supported')
+}
+const createComment = async () => {
+  throw new Error('Function no longer supported')
+}
+const updateComment = async () => {
+  throw new Error('Function no longer supported')
+}
+const deleteComment = async () => {
+  throw new Error('Function no longer supported')
+}
+const rateComment = async () => {
+  throw new Error('Function no longer supported')
+}
+const getTwitchStream = async () => {
+  throw new Error('Function no longer supported')
+}
+const getMovieNote = async () => {
+  throw new Error('Function no longer supported')
+}
+const saveMovieNote = async () => {
+  throw new Error('Function no longer supported')
+}
+const deleteMovieNote = async () => {
+  throw new Error('Function no longer supported')
+}
 
 export {
   searchPlayerCandidates,
@@ -655,27 +677,14 @@ export {
   getDons,
   getKpIDfromIMDB,
   getKpIDfromSHIKI,
-  getRating,
-  setRating,
   getNudityInfoFromIMDB,
   getComments,
   createComment,
   updateComment,
   deleteComment,
   rateComment,
-  submitTiming,
-  updateTiming,
-  deleteTiming,
-  reportTiming,
-  getTopTimingSubmitters,
-  getAllTimingSubmissions,
   getRandomMovie,
-  approveTiming,
-  rejectTiming,
-  markAsCleanText,
   getTwitchStream,
-  voteOnTiming,
-  getTimingVote,
   getMovieNote,
   saveMovieNote,
   deleteMovieNote

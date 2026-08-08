@@ -9,7 +9,6 @@ export const ignoredFailedUrlPatterns = [
   /goatcounter/,
   /favicon\.ico/,
   /stravers\.live/,
-  /api4\.rhserv\.vu\/kp_info2\//,
   /avatars\.mds\.yandex\.net/,
   /st\.kp\.yandex\.net/
 ]
@@ -118,7 +117,10 @@ export function createCollector(page) {
 export async function assertNoNotFound(page, stepName) {
   const url = page.url()
   const title = await page.title().catch(() => '')
-  const bodyText = await page.locator('body').innerText({ timeout: 5000 }).catch(() => '')
+  const bodyText = await page
+    .locator('body')
+    .innerText({ timeout: 5000 })
+    .catch(() => '')
   const hasNotFoundRoute = /\/404(?:\.html)?$/.test(new URL(url).pathname)
   const hasNotFoundText = /404|not found|страница не найдена/i.test(`${title}\n${bodyText}`)
 
