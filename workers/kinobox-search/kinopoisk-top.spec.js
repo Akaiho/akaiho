@@ -33,17 +33,18 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe('fixed Kinopoisk top proxy', () => {
+describe('fixed Kinopoisk popular-list proxy', () => {
   it('validates list type, bounded pagination and cache lifetime', () => {
     expect(resolve()).toMatchObject({
       params: { type: 'movie', page: '1', limit: '36' },
       cacheTtl: 3600
     })
     expect(resolve('?type=series&page=7&limit=36').params.type).toBe('series')
+    expect(resolve('?type=movie&page=28').params.page).toBe('28')
     for (const query of [
       '?type=unsupported',
       '?page=0',
-      '?page=8',
+      '?page=29',
       '?limit=51',
       '?limit=-1',
       '?page=1.5',
@@ -64,7 +65,7 @@ describe('fixed Kinopoisk top proxy', () => {
     const [url, request] = fetcher.mock.calls[0]
     expect(url).toBe('https://graphql.kinopoisk.ru/graphql/?operationName=MovieDesktopListPage')
     expect(JSON.parse(request.body).variables).toMatchObject({
-      slug: 'series-top250',
+      slug: 'popular-series',
       moviesOffset: 36,
       moviesLimit: 36,
       withUserData: false
@@ -77,7 +78,7 @@ describe('fixed Kinopoisk top proxy', () => {
   it('combines film and series lists for all and filters both lists to anime', async () => {
     const fetcher = vi.fn(async (_url, request) => {
       const { variables } = JSON.parse(request.body)
-      const isSeries = variables.slug === 'series-top250'
+      const isSeries = variables.slug === 'popular-series'
       const id = isSeries ? 2 : 1
       return new Response(
         JSON.stringify(
@@ -90,6 +91,7 @@ describe('fixed Kinopoisk top proxy', () => {
                   id,
                   __typename: isSeries ? 'TvSeries' : 'Film',
                   title: { russian: isSeries ? 'Аниме-сериал' : 'Аниме-фильм' },
+                  releaseYears: isSeries ? [{ start: 2024, end: 2025 }] : undefined,
                   rating: { kinopoisk: { value: 8, count: 10 } }
                 }
               }
@@ -102,6 +104,7 @@ describe('fixed Kinopoisk top proxy', () => {
     const all = await requestKinopoiskTop(resolve('?type=all'), fetcher)
     expect(all.data.total).toBe(4)
     expect(all.data.items.map((item) => item.movie.id)).toEqual([1, 2])
+    expect(all.data.items[1].movie.year).toBe(2024)
 
     fetcher.mockClear()
     const anime = await requestKinopoiskTop(resolve('?type=anime'), fetcher)
@@ -114,6 +117,18 @@ describe('fixed Kinopoisk top proxy', () => {
       ])
       expect(variables.supportedFilterTypes).toContain('SINGLE_SELECT')
     }
+  })
+  it('allows pagination through position 1000 and rejects offsets beyond it', async () => {
+    const lastPage = resolve('?type=movie&page=28')
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify(payload({ total: 1000 }))))
+
+    const data = await requestKinopoiskTop(lastPage, fetcher)
+
+    expect(JSON.parse(fetcher.mock.calls[0][1].body).variables.moviesOffset).toBe(972)
+    expect(data.data.total).toBe(1000)
+    expect(resolve('?type=movie&page=29').status).toBe(400)
   })
   it('rejects HTTP errors and GraphQL errors even with status 200', async () => {
     await expect(
@@ -134,7 +149,7 @@ describe('fixed Kinopoisk top proxy', () => {
   })
   it('rejects malformed or excessive data', async () => {
     for (const body of [
-      payload({ total: 251 }),
+      payload({ total: 1001 }),
       payload({ items: [{ movie: { id: -1 } }] }),
       { data: {} }
     ]) {

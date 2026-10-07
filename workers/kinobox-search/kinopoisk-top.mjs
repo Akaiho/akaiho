@@ -2,7 +2,9 @@ import { KINOPOISK_TOP_QUERY } from './kinopoisk-top-query.mjs'
 
 const ENDPOINT = 'https://graphql.kinopoisk.ru/graphql/?operationName=MovieDesktopListPage'
 const MAX_BYTES = 1024 * 1024
-const LISTS = { movie: 'top250', series: 'series-top250' }
+const MAX_LIST_ITEMS = 1000
+const TOP_LISTS_VERSION = 'popular-v2'
+const LISTS = { movie: 'popular-films', series: 'popular-series' }
 const COMBINED_TYPES = new Set(['all', 'anime'])
 
 export function resolveKinopoiskTop(url) {
@@ -16,9 +18,8 @@ export function resolveKinopoiskTop(url) {
     !/^[1-9]\d?$/.test(limit) ||
     Number(limit) > 50 ||
     (COMBINED_TYPES.has(type) && Number(limit) % 2 !== 0) ||
-    (Number(page) - 1) *
-      (COMBINED_TYPES.has(type) ? Number(limit) / 2 : Number(limit)) >=
-      250
+    (Number(page) - 1) * (COMBINED_TYPES.has(type) ? Number(limit) / 2 : Number(limit)) >=
+      MAX_LIST_ITEMS
   ) {
     return { error: 'Invalid top parameters', status: 400 }
   }
@@ -111,7 +112,7 @@ export async function requestKinopoiskTop(resource, fetchImpl = fetch, timeoutMs
           !Array.isArray(items) ||
           !Number.isInteger(list?.movies?.total) ||
           list.movies.total < 1 ||
-          list.movies.total > 250 ||
+          list.movies.total > MAX_LIST_ITEMS ||
           items.length > perListLimit ||
           items.some((item) => !Number.isInteger(item?.movie?.id) || item.movie.id < 1)
         ) {
@@ -133,19 +134,23 @@ export async function requestKinopoiskTop(resource, fetchImpl = fetch, timeoutMs
     const pageItems = items.slice(0, Number(limit))
     const pageOffset = (Number(page) - 1) * Number(limit)
     const normalizedItems = pageItems.map(({ movie }, index) => ({
-        position: pageOffset + index + 1,
-        movie: {
-          id: movie.id,
-          type: movie.__typename,
-          title: movie.title,
-          gallery: { posterUrl: movie.gallery?.posters?.vertical?.avatarsUrl },
-          rating: { kinopoisk: movie.rating?.kinopoisk },
-          year: movie.productionYear || movie.releaseYears?.start,
-          duration: movie.duration,
-          countries: movie.countries,
-          genres: movie.genres
-        }
-      }))
+      position: pageOffset + index + 1,
+      movie: {
+        id: movie.id,
+        type: movie.__typename,
+        title: movie.title,
+        gallery: { posterUrl: movie.gallery?.posters?.vertical?.avatarsUrl },
+        rating: { kinopoisk: movie.rating?.kinopoisk },
+        year:
+          movie.productionYear ||
+          (Array.isArray(movie.releaseYears)
+            ? movie.releaseYears[0]?.start
+            : movie.releaseYears?.start),
+        duration: movie.duration,
+        countries: movie.countries,
+        genres: movie.genres
+      }
+    }))
 
     return {
       data: {
@@ -168,7 +173,7 @@ export async function serveKinopoiskTop(resource, url, headers, ctx, cache) {
   delete headers['X-Kinobox-Transport']
   headers['X-Data-Source'] = 'kinopoisk'
   const cacheUrl = new URL('/__kinopoisk-top-cache', url.origin)
-  cacheUrl.searchParams.set('version', headers['X-Worker-Version'])
+  cacheUrl.searchParams.set('version', headers['X-Worker-Version'] + '-' + TOP_LISTS_VERSION)
   for (const [key, value] of Object.entries(resource.params)) {
     cacheUrl.searchParams.set(key, value)
   }

@@ -1,7 +1,7 @@
 # Akaiho Kinobox Worker
 
 This Cloudflare Worker proxies Kinobox search, movie details and player sources
-over HTTP/2. It also serves Kinopoisk top-250 lists, a combined film/series list,
+over HTTP/2. It also serves Kinopoisk popular film/series lists (up to 1000 each),
 and an anime-only view filtered by Kinopoisk's `genre=anime` value.
 
 ## Requirements
@@ -54,14 +54,14 @@ to a separate Worker; when unset, it uses `VITE_KINOBOX_API_URL`.
 
 ## Routes
 
-| Route | Purpose |
-| --- | --- |
-| `/` or `/api/movies/search/` | Kinobox search (`query`, 1–150 characters) |
-| `/api/movies/{id}` | Kinobox movie details |
-| `/api/players` | Kinobox player sources |
-| `/api/kinopoisk/top?type=movie\|series\|all\|anime` | Kinopoisk top lists |
+| Route                                               | Purpose                                    |
+| --------------------------------------------------- | ------------------------------------------ |
+| `/` or `/api/movies/search/`                        | Kinobox search (`query`, 1–150 characters) |
+| `/api/movies/{id}`                                  | Kinobox movie details                      |
+| `/api/players`                                      | Kinobox player sources                     |
+| `/api/kinopoisk/top?type=movie\|series\|all\|anime` | Kinopoisk popular lists                    |
 
-`all` interleaves the film and series top lists. `anime` filters both lists by
+`all` interleaves the film and series lists. `anime` filters both lists by
 the Anime genre and interleaves the results. Kinopoisk's GraphQL interface is
 internal and may change without notice; failures are returned instead of
 inventing results. The routes validate parameters, cap responses and reject

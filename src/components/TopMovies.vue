@@ -17,6 +17,15 @@
             </button>
           </div>
         </div>
+        <label class="foreign-toggle" title="Зарубежные">
+          <input
+            v-model="showForeignOnly"
+            type="checkbox"
+            aria-label="Показывать только зарубежные фильмы и сериалы"
+            :disabled="loading"
+          />
+          <i class="fa-solid fa-flag-usa" aria-hidden="true"></i>
+        </label>
       </div>
 
       <MovieList
@@ -46,6 +55,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 const movies = ref([])
 const loading = ref(false)
+const showForeignOnly = ref(false)
 const typeFilter = ref('all')
 const errorMessage = ref('')
 const errorCode = ref(null)
@@ -66,7 +76,22 @@ const normalTypeFilters = [
 ]
 
 const currentTypeFilters = computed(() => normalTypeFilters)
-const visibleMovies = computed(() => movies.value)
+const russianCountryNames = new Set(['россия', 'ссср', 'российская федерация'])
+const visibleMovies = computed(() =>
+  showForeignOnly.value
+    ? movies.value.filter((movie) => {
+        const countries = Array.isArray(movie?.countries) ? movie.countries : []
+        return !countries.some((entry) => {
+          const country = typeof entry === 'string' ? entry : entry?.country || entry?.name
+          return russianCountryNames.has(
+            String(country || '')
+              .trim()
+              .toLowerCase()
+          )
+        })
+      })
+    : movies.value
+)
 const canShowMore = computed(() => !loading.value && hasMore.value && !errorMessage.value)
 
 const dedupeMoviesByKpId = (items = []) => {
@@ -237,8 +262,8 @@ onUnmounted(disconnectInfiniteScroll)
 }
 
 .controls {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 8px;
   margin-bottom: 20px;
   width: 100%;
@@ -259,6 +284,40 @@ onUnmounted(disconnectInfiniteScroll)
   margin: 0;
   box-sizing: border-box;
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.type-card {
+  grid-column: 2;
+}
+
+.foreign-toggle {
+  grid-column: 3;
+  justify-self: end;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #e0e0e0;
+  font-size: 0.9em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.foreign-toggle .fa-flag-usa {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.foreign-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent-color);
+  cursor: pointer;
+}
+
+.foreign-toggle input:disabled {
+  cursor: not-allowed;
 }
 
 .card-header {
@@ -369,13 +428,23 @@ onUnmounted(disconnectInfiniteScroll)
 
 @media (max-width: 1000px) {
   .controls {
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 6px;
     padding: 0 10px;
   }
 
   .filter-card {
     width: 100%;
+  }
+
+  .type-card {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .foreign-toggle {
+    grid-column: 2;
+    grid-row: 2;
   }
 }
 
