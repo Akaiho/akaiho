@@ -3,14 +3,9 @@ import { requestKinoboxHttp2 } from './kinobox-http2-vendored.mjs'
 import { fetchKinopoiskUnofficialImdbRating } from './kinopoisk-unofficial.mjs'
 import { resolveKinoboxResource, getKinoboxCacheUrl, isKinoboxResponseValid } from './routes.mjs'
 import { resolveKinopoiskTop, serveKinopoiskTop } from './kinopoisk-top.mjs'
+import { isAllowedOrigin } from './cors.mjs'
 
 const VERSION = 'akaiho-kp-unofficial-imdb-v2-2026-10-07'
-const ALLOWED = new Set([
-  'https://kamiqb.gitlab.io',
-  'https://akaiho.github.io',
-  'http://127.0.0.1:5173',
-  'http://localhost:5173'
-])
 const DEFAULT_ORIGIN = 'https://kamiqb.gitlab.io'
 
 async function openTransport(hostname, port) {
@@ -72,7 +67,7 @@ export default {
     const origin = request.headers.get('Origin')
     const headers = {
       'Content-Type': 'application/json; charset=utf-8',
-      'Access-Control-Allow-Origin': ALLOWED.has(origin) ? origin : DEFAULT_ORIGIN,
+      'Access-Control-Allow-Origin': isAllowedOrigin(origin) ? origin : DEFAULT_ORIGIN,
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Expose-Headers':
@@ -84,7 +79,7 @@ export default {
       'X-Worker-Version': VERSION
     }
     const reply = (data, status = 200) => new Response(JSON.stringify(data), { status, headers })
-    if (origin && !ALLOWED.has(origin)) return reply({ error: 'Origin not allowed' }, 403)
+    if (origin && !isAllowedOrigin(origin)) return reply({ error: 'Origin not allowed' }, 403)
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers })
     if (request.method !== 'GET') return reply({ error: 'Method not allowed' }, 405)
     const url = new URL(request.url)

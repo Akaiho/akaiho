@@ -27,7 +27,7 @@ describe('Kinobox Worker routes', () => {
       kind: 'poster-imdb-rating',
       path: '/api/movies/301/imdb-rating',
       params: { id: '301' },
-      cacheTtl: 3600
+      cacheTtl: 259200
     })
     expect(resolve('/api/movies/abc/imdb-rating').status).toBe(400)
   })

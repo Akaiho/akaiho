@@ -66,7 +66,8 @@ the Anime genre and interleaves the results. Kinopoisk's GraphQL interface is
 internal and may change without notice; failures are returned instead of
 inventing results. The routes validate parameters, cap responses and reject
 arbitrary upstream URLs, headers and queries. CORS allows the Akaiho GitLab
-Pages origin, the legacy GitHub Pages origin, and localhost development.
+Pages origin, Akaiho Vercel production and preview origins, the legacy GitHub
+Pages origin, and localhost development.
 
 Kinobox responses are cached at the edge. Kinopoisk top responses are also
 cached, while upstream failures are not. CORS is not authentication; monitor
