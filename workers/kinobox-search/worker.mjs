@@ -1,0 +1,187 @@
+import { connect } from 'cloudflare:sockets'
+import { requestKinoboxHttp2 } from './kinobox-http2-vendored.mjs'
+import { fetchKinopoiskUnofficialImdbRating } from './kinopoisk-unofficial.mjs'
+import { resolveKinoboxResource, getKinoboxCacheUrl, isKinoboxResponseValid } from './routes.mjs'
+import { resolveKinopoiskTop, serveKinopoiskTop } from './kinopoisk-top.mjs'
+
+const VERSION = 'akaiho-kp-unofficial-imdb-v2-2026-10-07'
+const ALLOWED = new Set([
+  'https://kamiqb.gitlab.io',
+  'https://akaiho.github.io',
+  'http://127.0.0.1:5173',
+  'http://localhost:5173'
+])
+const DEFAULT_ORIGIN = 'https://kamiqb.gitlab.io'
+
+async function openTransport(hostname, port) {
+  const socket = connect({ hostname, port }, { secureTransport: 'off' })
+  // TLS is applied by the verified TLS 1.3 client, not disabled.
+  let timeout
+  try {
+    await Promise.race([
+      socket.opened,
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error('TCP connect timeout')), 5000)
+      })
+    ])
+  } catch (error) {
+    await socket.close().catch(() => {})
+    throw error
+  } finally {
+    clearTimeout(timeout)
+  }
+  return { readable: socket.readable, writable: socket.writable, close: () => socket.close() }
+}
+
+async function servePosterImdbRating(resource, url, headers, ctx, cache, apiKey) {
+  const cacheUrl = new URL('/__poster-imdb-rating-cache', url.origin)
+  cacheUrl.searchParams.set('version', `${VERSION}-3d`)
+  cacheUrl.searchParams.set('id', resource.params.id)
+
+  const cached = await cache.match(cacheUrl.toString())
+  if (cached) return new Response(cached.body, { status: 200, headers })
+
+  let ratingImdb = null
+
+  try {
+    ratingImdb = await fetchKinopoiskUnofficialImdbRating(resource.params.id, apiKey)
+  } catch {
+    ratingImdb = null
+  }
+
+  const body = JSON.stringify({ rating_imdb: ratingImdb })
+  ctx.waitUntil(
+    cache
+      .put(
+        cacheUrl.toString(),
+        new Response(body, {
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': `public, max-age=${ratingImdb === null ? 300 : resource.cacheTtl}`
+          }
+        })
+      )
+      .catch(() => console.error('poster_imdb_cache_error'))
+  )
+
+  return new Response(body, { status: 200, headers })
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    const origin = request.headers.get('Origin')
+    const headers = {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': ALLOWED.has(origin) ? origin : DEFAULT_ORIGIN,
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Expose-Headers':
+        'X-Search-Transport, X-Worker-Version, X-Search-Cache, X-Kinobox-Transport, X-Kinobox-Cache, X-Top-Cache, X-Data-Source',
+      Vary: 'Origin',
+      'Cache-Control': 'no-store',
+      'X-Search-Transport': 'h2',
+      'X-Kinobox-Transport': 'h2',
+      'X-Worker-Version': VERSION
+    }
+    const reply = (data, status = 200) => new Response(JSON.stringify(data), { status, headers })
+    if (origin && !ALLOWED.has(origin)) return reply({ error: 'Origin not allowed' }, 403)
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers })
+    if (request.method !== 'GET') return reply({ error: 'Method not allowed' }, 405)
+    const url = new URL(request.url)
+    const resource = resolveKinopoiskTop(url) || resolveKinoboxResource(url)
+    if (resource.error) return reply({ error: resource.error }, resource.status)
+    if (resource.kind === 'top')
+      return serveKinopoiskTop(resource, url, headers, ctx, caches.default)
+    if (resource.kind === 'poster-imdb-rating') {
+      return servePosterImdbRating(
+        resource,
+        url,
+        headers,
+        ctx,
+        caches.default,
+        env.KP_UNOFFICIAL_API_KEY
+      )
+    }
+    const cacheUrl = getKinoboxCacheUrl(url.origin, resource, VERSION)
+    const cache = caches.default
+    const cached = await cache.match(cacheUrl)
+    if (cached) {
+      headers['X-Search-Cache'] = 'HIT'
+      headers['X-Kinobox-Cache'] = 'HIT'
+      return new Response(cached.body, { status: 200, headers })
+    }
+    const started = Date.now()
+    try {
+      const response = await requestKinoboxHttp2(
+        {
+          path: resource.path,
+          params: {
+            ...resource.params,
+            ...(resource.kind !== 'players' ? { ts: Math.floor(Date.now() / 1000) } : {})
+          }
+        },
+        openTransport
+      )
+      console.log(
+        JSON.stringify({
+          event: 'kinobox_response',
+          kind: resource.kind,
+          status: response.status,
+          protocol: response.tls.selectedAlpn,
+          tls: response.tls.version,
+          durationMs: Date.now() - started
+        })
+      )
+      if (response.status !== 200)
+        return reply(
+          { error: 'Upstream HTTP error', upstreamStatus: response.status },
+          response.status === 404 ? 404 : 502
+        )
+      const encoding = response.headers['content-encoding']
+      if (encoding && encoding !== 'identity')
+        return reply({ error: 'Unexpected upstream encoding' }, 502)
+      let data
+      try {
+        data = JSON.parse(response.body.toString('utf8'))
+      } catch {
+        return reply({ error: 'Invalid upstream JSON' }, 502)
+      }
+      if (resource.kind === 'movie' && data?.data?.isSuccess === false) return reply(data, 404)
+      if (!isKinoboxResponseValid(resource.kind, data))
+        return reply({ error: 'Unexpected upstream schema' }, 502)
+      const body = JSON.stringify(data)
+      ctx.waitUntil(
+        cache
+          .put(
+            cacheUrl,
+            new Response(body, {
+              headers: {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Cache-Control': 'public, max-age=' + resource.cacheTtl
+              }
+            })
+          )
+          .catch((error) =>
+            console.error(JSON.stringify({ event: 'cache_error', message: error.message }))
+          )
+      )
+      headers['X-Search-Cache'] = 'MISS'
+      headers['X-Kinobox-Cache'] = 'MISS'
+      return new Response(body, { status: 200, headers })
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: 'kinobox_error',
+          message: error.message,
+          durationMs: Date.now() - started
+        })
+      )
+      return reply(
+        {
+          error: /timeout/i.test(error.message) ? 'Upstream timeout' : 'Upstream connection failed'
+        },
+        /timeout/i.test(error.message) ? 504 : 502
+      )
+    }
+  }
+}

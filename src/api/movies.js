@@ -45,15 +45,6 @@ const getCurrentProvider = () => {
   }
 }
 
-const getCurrentSearchProvider = () => {
-  try {
-    const mainStore = useMainStore()
-    return mainStore.searchApiProvider || CONTENT_PROVIDERS.KINOBD
-  } catch {
-    return CONTENT_PROVIDERS.KINOBD
-  }
-}
-
 const searchKinoBDPlayerCandidates = async (...args) =>
   (await loadProvider('kinobd')).searchPlayerCandidates(...args)
 const getKinoBDPlayerDataByInid = async (...args) =>
@@ -172,6 +163,11 @@ const getPlayersWithFallback = async (...args) => {
 }
 
 const callWithProvider = async (methodName, ...args) => {
+  if (methodName === 'getKpInfo') {
+    const kinobox = await loadProvider(CONTENT_PROVIDERS.KINOBOX)
+    return await kinobox.getKpInfo(...args)
+  }
+
   const provider = getCurrentProvider()
 
   if (provider === CONTENT_PROVIDERS.KINOBOX && KINOBOX_SUPPORTED_METHODS.has(methodName)) {
@@ -217,46 +213,33 @@ const callWithProvider = async (methodName, ...args) => {
 }
 
 const apiSearch = async (...args) => {
-  const provider = getCurrentSearchProvider()
-
-  if (provider === CONTENT_PROVIDERS.KINOBD) {
-    try {
-      const kinobd = await loadProvider('kinobd')
-      return await normalizeMovieListResponse(await kinobd.apiSearch(...args))
-    } catch (error) {
-      console.warn('[movies] apiSearch failed on KinoBD', error)
-      throw error
-    }
-  }
-
-  throw new Error('No search provider available')
+  const kinobox = await loadProvider(CONTENT_PROVIDERS.KINOBOX)
+  return await normalizeMovieListResponse(await kinobox.apiSearch(...args))
 }
 const getShikiInfo = async (...args) => callWithProvider('getShikiInfo', ...args)
 const getKpInfo = async (...args) => callWithProvider('getKpInfo', ...args)
+const getPosterImdbRating = async (...args) =>
+  (await loadProvider(CONTENT_PROVIDERS.KINOBOX)).getPosterImdbRating(...args)
 const getPlayers = async (...args) => getPlayersWithFallback(...args)
 const getShikiPlayers = async (...args) => callWithProvider('getShikiPlayers', ...args)
 const shouldEnrichListSeo = true
-// Top lists come from KinoBD
 const getMovies = async (...args) => {
+  const kinobox = await loadProvider(CONTENT_PROVIDERS.KINOBOX)
+  return await normalizeMovieListResponse(await kinobox.getTopMovies(...args))
+}
+const getDiscussedMovies = async (...args) => {
   try {
     return await normalizeMovieListResponse(
-      await (await loadProvider('kinobd')).getMovies(...args),
+      await (await loadProvider('kinobd')).getDiscussedMovies(...args),
       {
         enrichMissingSeo: shouldEnrichListSeo
       }
     )
   } catch (error) {
-    console.warn('[movies] getMovies failed on KinoBD', error)
+    console.warn('[movies] getDiscussedMovies failed on KinoBD', error)
     throw error
   }
 }
-const getDiscussedMovies = async (...args) =>
-  await normalizeMovieListResponse(
-    await (await loadProvider('kinobd')).getDiscussedMovies(...args),
-    {
-      enrichMissingSeo: shouldEnrichListSeo
-    }
-  )
 const getDons = async () => {
   throw new Error('Function no longer supported')
 }
@@ -302,6 +285,7 @@ export {
   apiSearch,
   getShikiInfo,
   getKpInfo,
+  getPosterImdbRating,
   getPlayers,
   getShikiPlayers,
   getMovies,

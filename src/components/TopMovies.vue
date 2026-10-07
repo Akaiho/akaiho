@@ -37,7 +37,7 @@
 </template>
 
 <script setup>
-import { getDiscussedMovies, getMovies } from '@/api/movies'
+import { getMovies } from '@/api/movies'
 import ErrorMessage from '@/components/ErrorMessage.vue'
 import { MovieList } from '@/components/MovieList'
 import { handleApiError } from '@/constants'
@@ -46,9 +46,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 const movies = ref([])
 const loading = ref(false)
-const activeTimeFilter = ref('24h')
 const typeFilter = ref('all')
-const lastNormalTypeFilter = ref('all')
 const errorMessage = ref('')
 const errorCode = ref(null)
 const route = useRoute()
@@ -67,14 +65,7 @@ const normalTypeFilters = [
   { label: 'Аниме', value: 'anime' }
 ]
 
-const discussedTypeFilters = [
-  { label: 'Горячее', value: 'hot' },
-  { label: 'Недавнее', value: 'recent' }
-]
-
-const currentTypeFilters = computed(() =>
-  activeTimeFilter.value === 'discussed' ? discussedTypeFilters : normalTypeFilters
-)
+const currentTypeFilters = computed(() => normalTypeFilters)
 const visibleMovies = computed(() => movies.value)
 const canShowMore = computed(() => !loading.value && hasMore.value && !errorMessage.value)
 
@@ -98,20 +89,11 @@ const resetPagination = () => {
 }
 
 const fetchMoviesPage = async (nextPage = 1) => {
-  const request =
-    activeTimeFilter.value === 'discussed'
-      ? getDiscussedMovies(typeFilter.value, {
-          page: nextPage,
-          limit: TOP_MOVIES_PAGE_SIZE
-        })
-      : getMovies({
-          activeTime: activeTimeFilter.value,
-          typeFilter: typeFilter.value,
-          page: nextPage,
-          limit: TOP_MOVIES_PAGE_SIZE
-        })
-
-  const nextMovies = await request
+  const nextMovies = await getMovies({
+    typeFilter: typeFilter.value,
+    page: nextPage,
+    limit: TOP_MOVIES_PAGE_SIZE
+  })
   hasMore.value = Array.isArray(nextMovies) && nextMovies.length === TOP_MOVIES_PAGE_SIZE
   page.value = nextPage
 
@@ -170,18 +152,9 @@ const setupInfiniteScroll = async () => {
 }
 
 const applyRouteFilters = (query) => {
-  const nextTime = typeof query.time === 'string' && query.time ? query.time : '24h'
   const nextType = typeof query.type === 'string' && query.type ? query.type : null
-
-  activeTimeFilter.value = nextTime
-
-  if (nextTime === 'discussed') {
-    typeFilter.value = nextType || 'hot'
-    return
-  }
-
-  typeFilter.value = nextType || 'all'
-  lastNormalTypeFilter.value = typeFilter.value
+  const supportedTypes = normalTypeFilters.map((filter) => filter.value)
+  typeFilter.value = supportedTypes.includes(nextType) ? nextType : 'all'
 }
 
 const fetchMovies = async () => {
@@ -216,9 +189,6 @@ watch(canShowMore, (canLoad) => {
 
 const changeTypeFilter = (value) => {
   typeFilter.value = value
-  if (activeTimeFilter.value !== 'discussed') {
-    lastNormalTypeFilter.value = value
-  }
 
   router.push({
     query: {
@@ -231,7 +201,7 @@ const changeTypeFilter = (value) => {
 watch(
   () => route.query,
   (newQuery, oldQuery) => {
-    if (newQuery.time === oldQuery?.time && newQuery.type === oldQuery?.type) {
+    if (newQuery.type === oldQuery?.type) {
       return
     }
 

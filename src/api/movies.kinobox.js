@@ -3,7 +3,9 @@ import axios from 'axios'
 let isErrorSimulationEnabled = false
 const simulatedErrorCode = 500
 
-const KINOBOX_BASE_URL = import.meta.env.VITE_KINOBOX_API_URL || 'https://api.kinobox.tv'
+const KINOBOX_BASE_URL =
+  import.meta.env.VITE_KINOBOX_API_URL || 'https://akaiho-kinobox.akaiho.workers.dev'
+const KINOBOX_SEARCH_BASE_URL = import.meta.env.VITE_KINOBOX_SEARCH_API_URL || KINOBOX_BASE_URL
 const HIDDEN_KINOBOX_PROVIDERS = (import.meta.env.VITE_HIDDEN_KINOBOX_PROVIDERS || 'alloha')
   .split(',')
   .map((item) => item.trim().toLowerCase())
@@ -15,6 +17,7 @@ const api = axios.create({
     'Content-Type': 'application/json'
   }
 })
+let animeTopMoviesPromise = null
 
 const simulateErrorIfNeeded = async () => {
   if (isErrorSimulationEnabled && simulatedErrorCode) {
@@ -38,6 +41,169 @@ const ensureUniqueKey = (obj, baseKey) => {
 }
 
 const normalizePlayerType = (value) => String(value || 'Player').trim()
+
+const toNumberOrNull = (value) => {
+  if (value === null || value === undefined || value === '') return null
+  const number = Number(String(value).replace(',', '.'))
+  return Number.isFinite(number) ? number : null
+}
+
+const toLegacyType = (value) => {
+  const type = String(value || '').toLowerCase()
+  if (type.includes('series') || type.includes('serial') || type.includes('show')) {
+    return 'TV_SERIES'
+  }
+  return 'FILM'
+}
+
+const normalizeCountries = (countries = []) => {
+  if (!Array.isArray(countries)) return []
+  return countries
+    .map((country) => country?.name || country?.country || '')
+    .filter(Boolean)
+    .map((country) => ({ country }))
+}
+
+const normalizeGenres = (genres = []) => {
+  if (!Array.isArray(genres)) return []
+  return genres
+    .map((genre) => genre?.name || genre?.genre || '')
+    .filter(Boolean)
+    .map((genre) => ({ genre }))
+}
+
+const normalizeStaff = (crew = []) => {
+  if (!Array.isArray(crew)) return []
+  return crew.map((item) => ({
+    staff_id: item?.person?.id || null,
+    name_ru: item?.person?.name || '',
+    name_en: item?.person?.originalName || '',
+    description: item?.role || '',
+    poster_url: item?.person?.photoUrl || '',
+    profession_text: item?.role || '',
+    profession_key: String(item?.role || '').toUpperCase()
+  }))
+}
+
+const normalizeKinoboxMovie = (movie, kpId) => {
+  if (!movie || typeof movie !== 'object') return null
+
+  const resolvedKpId =
+    Number(kpId) ||
+    Number(movie?.kinopoiskId) ||
+    Number(movie?.kinopoisk_id) ||
+    Number(movie?.id) ||
+    null
+  const ratingKinopoisk = movie?.rating?.kinopoisk || {}
+  const ratingImdb = movie?.rating?.imdb || {}
+  const trailer = movie?.trailer
+  const trailerVideoUrl = trailer?.videoUrl || ''
+
+  return {
+    id: resolvedKpId,
+    kp_id: resolvedKpId,
+    kinopoisk_id: resolvedKpId,
+    imdb_id: null,
+    title: String(movie?.title?.russian || movie?.title?.original || '').trim(),
+    name_ru: movie?.title?.russian || '',
+    name_en: '',
+    name_original: movie?.title?.original || '',
+    poster: movie?.gallery?.posterUrl || '',
+    poster_url: movie?.gallery?.posterUrl || '',
+    poster_url_preview: movie?.gallery?.posterUrl || '',
+    reviews_count: 0,
+    rating_good_review: null,
+    rating_good_review_vote_count: 0,
+    rating_kinopoisk: toNumberOrNull(ratingKinopoisk.value),
+    rating_kinopoisk_vote_count: Number(ratingKinopoisk.count) || 0,
+    rating_imdb: toNumberOrNull(ratingImdb.value),
+    rating_imdb_vote_count: Number(ratingImdb.count) || 0,
+    rating_film_critics: null,
+    rating_film_critics_vote_count: 0,
+    rating_await: null,
+    rating_await_count: 0,
+    rating_rf_critics: null,
+    rating_rf_critics_vote_count: 0,
+    year: movie?.year || null,
+    film_length: movie?.duration || null,
+    is_tickets_available: false,
+    production_status: movie?.status || '',
+    type: toLegacyType(movie?.type),
+    has_imax: false,
+    has_3_d: false,
+    countries: normalizeCountries(movie?.countries),
+    genres: normalizeGenres(movie?.genres),
+    start_year: movie?.year || null,
+    end_year: null,
+    cover_url: movie?.gallery?.coverUrl || null,
+    logo_url: null,
+    web_url: movie?.id ? `https://www.kinopoisk.ru/film/${movie.id}/` : '',
+    slogan: null,
+    description: movie?.description || movie?.synopsis || '',
+    short_description: movie?.synopsis || movie?.description || '',
+    editor_annotation: null,
+    rating_mpaa: movie?.restriction?.mpaa || null,
+    rating_age_limits: movie?.restriction?.age || null,
+    last_sync: movie?.updatedAt || '',
+    serial: toLegacyType(movie?.type) === 'TV_SERIES',
+    short_film: false,
+    completed: false,
+    sequels_and_prequels: [],
+    similars: [],
+    videos: trailerVideoUrl
+      ? [
+          {
+            name: trailer?.title || 'Trailer',
+            url: trailerVideoUrl,
+            image_url: trailer?.coverUrl || ''
+          }
+        ]
+      : [],
+    staff: normalizeStaff(movie?.crew),
+    nudity_timings: [],
+    lists: {
+      isFavorite: false,
+      isHistory: false,
+      isLater: false,
+      isCompleted: false,
+      isAbandoned: false,
+      isWatching: false,
+      isRated: false
+    },
+    rating_kp: toNumberOrNull(ratingKinopoisk.value),
+    raw_data: {
+      ...movie,
+      name_ru: movie?.title?.russian || movie?.title?.original || '',
+      name_en: movie?.title?.original || '',
+      rating: toNumberOrNull(ratingKinopoisk.value),
+      type: toLegacyType(movie?.type)
+    },
+    source: 'kinobox'
+  }
+}
+
+const normalizeKinoboxSearchResponse = (data) => {
+  const candidates = [
+    data,
+    data?.data,
+    data?.movies,
+    data?.results,
+    data?.items,
+    data?.data?.items,
+    data?.data?.movies,
+    data?.data?.results
+  ]
+  const rows = candidates.find(Array.isArray) || []
+
+  return rows
+    .map((movie) =>
+      normalizeKinoboxMovie(
+        movie,
+        movie?.kinopoiskId || movie?.kinopoisk_id || movie?.kinopoisk || movie?.id
+      )
+    )
+    .filter((movie) => movie?.id)
+}
 
 const toPlayersMap = (providers = [], { type = null, translationId = null } = {}) => {
   const players = {}
@@ -118,7 +284,164 @@ const getPlayers = async (kpId, options = {}) => {
   return toPlayersMap(providers, options)
 }
 
-export { getPlayers, getPlayersRaw }
+const getKpInfo = async (kpId, requestConfig = {}) => {
+  const { data } = await apiCall((client) =>
+    client.get(`/api/movies/${kpId}`, {
+      ...requestConfig,
+      params: {
+        ts: Math.floor(Date.now() / 1000)
+      }
+    })
+  )
+
+  const movie = data?.data?.movie || data?.movie || data?.data || null
+  return normalizeKinoboxMovie(movie, kpId)
+}
+
+const getPosterImdbRating = async (kpId) => {
+  const { data } = await apiCall((client) =>
+    client.get(`/api/movies/${kpId}/imdb-rating`, {
+      params: { ts: Math.floor(Date.now() / 1000) }
+    })
+  )
+
+  const rawRating = data?.rating_imdb
+  if (rawRating === null || rawRating === undefined || rawRating === '') return null
+  const rating = Number(rawRating)
+  return Number.isFinite(rating) ? rating : null
+}
+
+const apiSearch = async (searchTerm, requestConfig = {}) => {
+  const { data } = await apiCall((client) =>
+    client.get('/api/movies/search/', {
+      ...requestConfig,
+      baseURL: KINOBOX_SEARCH_BASE_URL,
+      params: {
+        query: String(searchTerm),
+        ts: Math.floor(Date.now() / 1000)
+      }
+    })
+  )
+
+  return normalizeKinoboxSearchResponse(data)
+}
+
+const fetchTopMoviesPage = async ({ typeFilter, page, limit }) => {
+  const { data } = await apiCall((client) =>
+    client.get('/api/kinopoisk/top', {
+      params: { type: typeFilter, page, limit },
+      timeout: 20000
+    })
+  )
+  if (!Array.isArray(data?.data?.items)) throw new Error('Invalid Kinopoisk top response')
+  return data.data.items.map(({ movie, position }) => {
+    const poster = movie?.gallery?.posterUrl || ''
+    const posterUrl = poster.startsWith('//') ? 'https:' + poster + '/300x450' : poster
+    return {
+      ...normalizeKinoboxMovie({
+        ...movie,
+        gallery: { ...movie?.gallery, posterUrl }
+      }),
+      position,
+      source: 'kinopoisk'
+    }
+  })
+}
+
+const interleaveTopLists = (lists, startPosition = 0) => {
+  const items = []
+  const maxLength = Math.max(...lists.map((list) => list.length))
+
+  for (let index = 0; index < maxLength; index += 1) {
+    for (const list of lists) {
+      if (list[index]) {
+        items.push({ ...list[index], position: startPosition + items.length + 1 })
+      }
+    }
+  }
+
+  return items
+}
+
+const isAnimeMovie = (movie) =>
+  (Array.isArray(movie?.raw_data?.genres) ? movie.raw_data.genres : []).some((genre) => {
+    const name = String(genre?.name || genre?.genre || '').trim().toLowerCase()
+    return String(genre?.id || '') === '1750' || name === 'аниме'
+  })
+
+const loadAnimeTopMovies = () => {
+  if (!animeTopMoviesPromise) {
+    animeTopMoviesPromise = (async () => {
+      const moviePages = []
+      const seriesPages = []
+
+      for (let page = 1; page <= 5; page += 1) {
+        const [movies, series] = await Promise.all([
+          fetchTopMoviesPage({ typeFilter: 'movie', page, limit: 50 }),
+          fetchTopMoviesPage({ typeFilter: 'series', page, limit: 50 })
+        ])
+        moviePages.push(...movies)
+        seriesPages.push(...series)
+      }
+
+      return interleaveTopLists([
+        moviePages.filter(isAnimeMovie),
+        seriesPages.filter(isAnimeMovie)
+      ])
+    })().catch((error) => {
+      animeTopMoviesPromise = null
+      throw error
+    })
+  }
+
+  return animeTopMoviesPromise
+}
+
+const getTopMovies = async ({ typeFilter = 'movie', page = 1, limit = 36 } = {}) => {
+  if (typeFilter === 'movie' || typeFilter === 'series') {
+    return await fetchTopMoviesPage({ typeFilter, page, limit })
+  }
+
+  if (typeFilter === 'all' || typeFilter === 'anime') {
+    try {
+      return await fetchTopMoviesPage({ typeFilter, page, limit })
+    } catch (error) {
+      if (error?.response?.status !== 400) throw error
+    }
+  }
+
+  if (typeFilter === 'all') {
+    if (limit % 2 !== 0) throw new Error('Combined Kinopoisk page size must be even')
+    const perListLimit = limit / 2
+    const [movies, series] = await Promise.all([
+      fetchTopMoviesPage({ typeFilter: 'movie', page, limit: perListLimit }),
+      fetchTopMoviesPage({ typeFilter: 'series', page, limit: perListLimit })
+    ])
+    return interleaveTopLists([movies, series], (page - 1) * limit)
+  }
+
+  if (typeFilter === 'anime') {
+    const movies = await loadAnimeTopMovies()
+    const start = (page - 1) * limit
+    return movies.slice(start, start + limit).map((movie, index) => ({
+      ...movie,
+      position: start + index + 1
+    }))
+  }
+
+  throw new Error(`Unsupported Kinopoisk top type: ${typeFilter}`)
+}
+
+export {
+  apiSearch,
+  getKpInfo,
+  getPosterImdbRating,
+  getPlayers,
+  getPlayersRaw,
+  getTopMovies,
+  normalizeKinoboxMovie,
+  normalizeKinoboxSearchResponse
+}
 
 export const toggleErrorSimulation = (enabled) => {
   isErrorSimulationEnabled = enabled

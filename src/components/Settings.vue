@@ -102,20 +102,20 @@
         <div class="radio-group">
           <p class="api-subtitle">API для данных / плеера</p>
           <label class="radio"
-            ><input v-model="contentApiProvider" type="radio" value="kinobd" /> KinoBD
+            ><input v-model="contentApiProvider" type="radio" value="kinobd" /> Unavailable
             (search/cards/players)</label
           >
           <label class="radio"
             ><input v-model="contentApiProvider" type="radio" value="kinobox" /> Kinobox
-            (players)</label
+            (search/cards/players)</label
           >
         </div>
-        <p class="api-note">KinoBD: поиск, карточки и плееры. Kinobox: только плееры.</p>
+        <p class="api-note">Unavailable: поиск, карточки и плееры. Kinobox: только плееры.</p>
 
         <div class="radio-group" style="margin-top: 12px">
           <p class="api-subtitle">API для поиска</p>
           <label class="radio"
-            ><input v-model="searchApiProvider" type="radio" value="kinobd" /> KinoBD</label
+            ><input v-model="searchApiProvider" type="radio" value="kinobd" /> Kinobox</label
           >
         </div>
 

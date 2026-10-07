@@ -32,11 +32,11 @@
       <div v-if="ratingKp || ratingImdb" class="ratings-overlay">
         <span v-if="ratingKp" class="rating-kp" :class="getRatingColor(ratingKp)">
           <img :src="kpLogoUrl" alt="КП" class="rating-logo" />
-          {{ ratingKp }}
+          {{ formattedRatingKp }}
         </span>
         <span v-if="ratingImdb" class="rating-imdb" :class="getRatingColor(ratingImdb)">
           <img :src="imdbLogoUrl" alt="IMDb" class="rating-logo" />
-          {{ ratingImdb }}
+          {{ formattedRatingImdb }}
         </span>
       </div>
       <div v-if="movie.type && TYPES_ENUM[movie.type]" class="poster-type">
@@ -53,11 +53,12 @@
 import DeleteButton from '@/components/buttons/DeleteButton.vue'
 import { TYPES_ENUM } from '@/constants'
 import { useMainStore } from '@/store/main'
+import { getPosterImdbRating } from '@/api/posterImdbRatings'
 import { resolvePosterByMovie } from '@/utils/mediaUtils'
 import { getRatingColor } from '@/utils/ratingUtils'
 import imdbLogoUrl from '@/assets/icon-imdb-logo.svg'
 import kpLogoUrl from '@/assets/icon-kp-logo.svg'
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 const mainStore = useMainStore()
 const cardSize = computed(() => mainStore.cardSize)
@@ -82,14 +83,27 @@ const {
 
 const emit = defineEmits(['remove:from-history'])
 const isServerRender = import.meta.env.SSR
+const fetchedRatingImdb = ref(null)
 
 const posterSrc = computed(() => {
   return resolvePosterByMovie(movie)
 })
 const ratingKp = computed(() => movie?.rating_kp ?? movie?.rating_kinopoisk ?? null)
-const ratingImdb = computed(() => movie?.rating_imdb ?? null)
+const ratingImdb = computed(() => movie?.rating_imdb ?? fetchedRatingImdb.value)
+const formatPosterRating = (rating) => {
+  if (rating === null || rating === undefined || rating === '') return null
+  const numericRating = Number(rating)
+  return Number.isFinite(numericRating) ? numericRating.toFixed(1) : null
+}
+const formattedRatingKp = computed(() => formatPosterRating(ratingKp.value))
+const formattedRatingImdb = computed(() => formatPosterRating(ratingImdb.value))
 const imageLoading = computed(() => (priority ? 'eager' : 'lazy'))
 const imageFetchPriority = computed(() => (priority ? 'high' : 'low'))
+
+onMounted(async () => {
+  if (movie?.source !== 'kinopoisk' || ratingImdb.value !== null) return
+  fetchedRatingImdb.value = await getPosterImdbRating(movie?.kp_id ?? movie?.id)
+})
 </script>
 
 <style scoped>
