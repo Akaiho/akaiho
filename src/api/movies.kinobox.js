@@ -3,9 +3,10 @@ import axios from 'axios'
 let isErrorSimulationEnabled = false
 const simulatedErrorCode = 500
 
-const KINOBOX_BASE_URL =
-  import.meta.env.VITE_KINOBOX_API_URL || 'https://akaiho-kinobox.akaiho.workers.dev'
-const KINOBOX_SEARCH_BASE_URL = import.meta.env.VITE_KINOBOX_SEARCH_API_URL || KINOBOX_BASE_URL
+// API used for movie viewing, player/streaming endpoints
+const KINOBOX_BASE_URL = import.meta.env.VITE_KINOBOX_API_URL || 'https://api.kinobox.tv'
+// API used for search and popular/trending listings (akaiho proxy)
+const KINOBOX_INDEX_BASE_URL = 'https://akaiho-kinobox.akaiho.workers.dev'
 const HIDDEN_KINOBOX_PROVIDERS = (import.meta.env.VITE_HIDDEN_KINOBOX_PROVIDERS || 'alloha')
   .split(',')
   .map((item) => item.trim().toLowerCase())
@@ -315,7 +316,7 @@ const apiSearch = async (searchTerm, requestConfig = {}) => {
   const { data } = await apiCall((client) =>
     client.get('/api/movies/search/', {
       ...requestConfig,
-      baseURL: KINOBOX_SEARCH_BASE_URL,
+      baseURL: KINOBOX_INDEX_BASE_URL,
       params: {
         query: String(searchTerm),
         ts: Math.floor(Date.now() / 1000)
@@ -329,6 +330,7 @@ const apiSearch = async (searchTerm, requestConfig = {}) => {
 const fetchTopMoviesPage = async ({ typeFilter, page, limit }) => {
   const { data } = await apiCall((client) =>
     client.get('/api/kinopoisk/top', {
+      baseURL: KINOBOX_INDEX_BASE_URL,
       params: { type: typeFilter, page, limit },
       timeout: 20000
     })
@@ -365,7 +367,9 @@ const interleaveTopLists = (lists, startPosition = 0) => {
 
 const isAnimeMovie = (movie) =>
   (Array.isArray(movie?.raw_data?.genres) ? movie.raw_data.genres : []).some((genre) => {
-    const name = String(genre?.name || genre?.genre || '').trim().toLowerCase()
+    const name = String(genre?.name || genre?.genre || '')
+      .trim()
+      .toLowerCase()
     return String(genre?.id || '') === '1750' || name === 'аниме'
   })
 
@@ -384,10 +388,7 @@ const loadAnimeTopMovies = () => {
         seriesPages.push(...series)
       }
 
-      return interleaveTopLists([
-        moviePages.filter(isAnimeMovie),
-        seriesPages.filter(isAnimeMovie)
-      ])
+      return interleaveTopLists([moviePages.filter(isAnimeMovie), seriesPages.filter(isAnimeMovie)])
     })().catch((error) => {
       animeTopMoviesPromise = null
       throw error
